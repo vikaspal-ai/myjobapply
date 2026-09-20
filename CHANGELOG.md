@@ -84,6 +84,38 @@ The following domain events are emitted across completed phases:
 
 ## 4. Phase-by-Phase Changelog & Implementation History
 
+### [0.7.0-phase6] - 2026-09-20
+#### Phase 6: Frontend Dashboard & Analytics — BFF REST API, Web Command Center & Human Approval Modal
+- **Files Created/Modified:**
+  - [`src/api/types.ts`](./src/api/types.ts): Strongly typed REST contracts for candidate facts, canonical jobs, applications, documents, pipeline triggers, and funnel analytics.
+  - [`src/api/routes/candidates.ts`](./src/api/routes/candidates.ts): Candidate profiles and fact store CRUD (`GET /api/candidates`, `GET /api/candidates/:id/facts`, `POST /api/candidates/:id/facts`, `PATCH /api/candidates/:id/facts/:factId`).
+  - [`src/api/routes/jobs.ts`](./src/api/routes/jobs.ts): Searchable canonical jobs feed with candidate match scoring, company domain join, and match criteria breakdown (`GET /api/jobs`, `GET /api/jobs/:id`, `GET /api/jobs/:id/matches`).
+  - [`src/api/routes/applications.ts`](./src/api/routes/applications.ts): Complete application lifecycle API (`GET /api/applications`, `GET /api/applications/:id`, `POST /api/applications/draft`, `POST /api/applications/:id/prepare`, `POST /api/applications/:id/approve`, `POST /api/applications/:id/pause`, `POST /api/applications/:id/run`). Enforces HTTP 403 Forbidden on unapproved submission attempts.
+  - [`src/api/routes/documents.ts`](./src/api/routes/documents.ts): Tailored and master resume versions and cover letter inspection (`GET /api/resumes`, `GET /api/resumes/:id`, `GET /api/cover-letters`).
+  - [`src/api/routes/pipeline.ts`](./src/api/routes/pipeline.ts): On-demand career page ingestion crawls, outbox consumer sweep, and scheduler lease status (`GET /api/pipeline/status`, `POST /api/pipeline/consume`, `POST /api/pipeline/crawl`).
+  - [`src/api/routes/analytics.ts`](./src/api/routes/analytics.ts): Aggregated funnel metrics, $0 budget quota meter (15/day safety limit), ATS distribution, and crawler health (`GET /api/analytics/metrics`).
+  - [`src/api/server.ts`](./src/api/server.ts): Fastify server factory and runner unifying the REST API and static dashboard SPA on a single port (`http://localhost:3000`).
+  - [`src/dashboard/public/index.html`](./src/dashboard/public/index.html): Responsive dark-themed SPA featuring Overview & Analytics, Human Review Queue, Jobs Feed, Grounded Fact Store, and Pipeline Controls.
+  - [`src/dashboard/public/styles.css`](./src/dashboard/public/styles.css): Clean CSS design system with glassmorphic cards, responsive modals, status badges, and animated progress bars.
+  - [`src/dashboard/public/app.js`](./src/dashboard/public/app.js): Vanilla ES module client state machine with dynamic candidate switching, real-time metrics, interactive Human Review & Approval Modal, and pipeline triggers.
+  - [`src/api/server.test.ts`](./src/api/server.test.ts): Automated integration test suite (7 tests) validating all REST endpoints and the Human Approval Gate invariant against live Supabase.
+  - [`package.json`](./package.json): Added `"server": "tsx src/api/server.ts"` script.
+- **Key Technical Decisions & Highlights:**
+  - **Single-Process $0 Hybrid Architecture:**
+    - Fastify serves both the high-performance REST API (`/api/*`) and the zero-build web dashboard (`/`) on port 3000, eliminating dev-server reverse proxies, CORS issues, and build tool overhead.
+  - **Human-in-the-Loop Review Gate Enforcement:**
+    - The API and UI strictly prevent automated submission unless an explicit human approval is recorded (`POST /api/applications/:id/approve`). Unapproved submission attempts immediately return HTTP 403 Forbidden (`HUMAN_APPROVAL_REQUIRED`).
+  - **$0 Budget & Safety Quota Meter:**
+    - Built-in quota tracker measures daily application submissions against the configurable safety limit (default 15/day), visually tracking budget and preventing vendor account suspension.
+  - **Anti-Fabrication Evidence Audit:**
+    - The approval modal presents each evaluated match criterion linked directly to verified citations in `profile.candidate_facts`, ensuring 100% grounded transparency before submission.
+- **Verification Status:**
+  - 7/7 tests passed in `src/api/server.test.ts`.
+  - Full system regression: **17 test files, 63/63 tests passing (100% green)** on live Supabase (`npm test`).
+  - TypeScript typecheck: `npm run typecheck` passed with 0 errors.
+
+---
+
 ### [0.6.2-phase5.3] - 2026-09-20
 #### Phase 5: Search & Discovery Pipeline Orchestration — Chunk 5.3: Outbox Event Consumer & Autonomous Pipeline
 - **Files Created/Modified:**
@@ -389,6 +421,7 @@ The following domain events are emitted across completed phases:
 - **Phase 5: Search & Discovery Pipeline Orchestration (Completed)**
   - [x] **Chunk 5.1**: Distributed Lease Scheduler & Crash Recovery Engine (`sched.schedules`, atomic `SKIP LOCKED`, crash timeout).
   - [x] **Chunk 5.2**: Domain Rate-Limiting, Robots Politeness & Circuit Breakers (`DomainRateLimiter`, `CircuitBreaker`, `RobotsPolitenessService`).
-  - [x] **Chunk 5.3**: Outbox Event Consumer & Automated End-to-End Pipeline (`OutboxConsumer`, `PipelineOrchestrator`, reactive cascade).
-- **Phase 6: Frontend Dashboard & Analytics**
-  - Modern web interface for application tracking, fact management, manual approval, and status monitoring.
+- **Phase 6: Frontend Dashboard & Analytics (Completed)**
+  - [x] **Chunk 6.1**: Backend REST API & Controllers (`src/api/routes/*`, typed contracts, error handlers).
+  - [x] **Chunk 6.2**: Human-in-the-Loop Review Queue & Approval Modal (Evidence audit, resume & letter preview, ATS review).
+  - [x] **Chunk 6.3**: Single-Process Command Center & Quota Meter (Served via Fastify, 63/63 tests green).

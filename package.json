@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "server": "tsx src/api/server.ts"
   },
   "keywords": [
     "job-hunt",
@@ -20,10 +21,13 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.4",
     "@supabase/server": "^1.0.1",
     "@supabase/supabase-js": "^2.49.1",
     "cheerio": "^1.2.0",
     "dotenv": "^16.4.7",
+    "fastify": "^5.12.5",
     "postgres": "^3.4.5"
   },
   "devDependencies": {

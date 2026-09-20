@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Hunt Platform — Single-User Command Center</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body class="bg-dark text-slate">
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-logo">🎯</div>
+        <div class="brand-info">
+          <h1>Job Hunt Platform</h1>
+          <span class="badge-hybrid">$0 Hybrid • Autonomous • Anti-Fabrication</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Active Candidate Switcher -->
+        <div class="candidate-switcher">
+          <label for="candidateSelect">Candidate:</label>
+          <select id="candidateSelect" class="input-select">
+            <option value="">Loading candidates...</option>
+          </select>
+        </div>
+
+        <div class="system-status">
+          <span class="status-dot"></span>
+          <span class="status-label">Supabase Cloud</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="overview">
+        <span class="tab-icon">📊</span> Overview & Analytics
+      </button>
+      <button class="nav-tab" data-tab="approvals">
+        <span class="tab-icon">🛡️</span> Human Review Queue
+        <span id="pendingBadge" class="counter-badge">0</span>
+      </button>
+      <button class="nav-tab" data-tab="jobs">
+        <span class="tab-icon">💼</span> Jobs & Matches
+      </button>
+      <button class="nav-tab" data-tab="facts">
+        <span class="tab-icon">🧠</span> Candidate Fact Store
+      </button>
+      <button class="nav-tab" data-tab="pipeline">
+        <span class="tab-icon">⚙️</span> Pipeline Controls
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+    <!-- TAB 1: OVERVIEW & ANALYTICS -->
+    <section id="tab-overview" class="tab-pane active">
+      <!-- Funnel Metrics Grid -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Discovered Postings</span>
+            <span class="metric-icon">🕷️</span>
+          </div>
+          <div id="statDiscovered" class="metric-value">--</div>
+          <div class="metric-subtext">Crawled raw postings in database</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Canonical Jobs</span>
+            <span class="metric-icon">✨</span>
+          </div>
+          <div id="statCanonical" class="metric-value">--</div>
+          <div class="metric-subtext">Deduplicated 4-layer cascade</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Matched Opportunities</span>
+            <span class="metric-icon">🎯</span>
+          </div>
+          <div id="statMatched" class="metric-value">--</div>
+          <div class="metric-subtext">Grounded in candidate facts</div>
+        </div>
+
+        <div class="metric-card highlight">
+          <div class="metric-header">
+            <span class="metric-title">Pending Human Review</span>
+            <span class="metric-icon">🛡️</span>
+          </div>
+          <div id="statPendingReview" class="metric-value text-amber">--</div>
+          <div class="metric-subtext">Awaiting human approval gate</div>
+        </div>
+      </div>
+
+      <!-- Quota & Safety Meter -->
+      <div class="dashboard-row">
+        <div class="card quota-card">
+          <div class="card-header">
+            <h3>$0 Budget & Safety Quota Meter</h3>
+            <span class="badge-outline">Strict 15/day Max</span>
+          </div>
+          <div class="quota-meter-container">
+            <div class="quota-bar-wrapper">
+              <div id="quotaBar" class="quota-bar" style="width: 0%;"></div>
+            </div>
+            <div class="quota-labels">
+              <span id="quotaSubmittedText">0 submitted today</span>
+              <span id="quotaRemainingText">15 remaining allowance</span>
+            </div>
+          </div>
+          <div class="quota-note">
+            Automated submissions are strictly rate-limited to avoid vendor account suspension, CAPTCHA escalations, and API billing.
+          </div>
+        </div>
+
+        <div class="card ats-card">
+          <div class="card-header">
+            <h3>ATS Distribution</h3>
+            <span class="badge-outline">Fingerprinted Sources</span>
+          </div>
+          <div id="atsList" class="ats-breakdown-list">
+            <div class="empty-state">Loading ATS metrics...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Outbox Activity -->
+      <div class="card mt-6">
+        <div class="card-header">
+          <h3>Transactional Outbox Activity (Event Cascade)</h3>
+          <button id="btnRefreshActivity" class="btn btn-sm btn-ghost">↻ Refresh</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Event Type</th>
+                <th>Producer</th>
+                <th>Correlation ID</th>
+                <th>Published</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="outboxEventsTable">
+              <tr><td colspan="5" class="text-center py-4">Loading events...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: HUMAN REVIEW QUEUE -->
+    <section id="tab-approvals" class="tab-pane">
+      <div class="view-header">
+        <div>
+          <h2>Human-in-the-Loop Review Queue</h2>
+          <p class="subtitle">Platform Invariant: Submission is strictly blocked without explicit human approval.</p>
+        </div>
+        <div class="filter-group">
+          <button class="filter-btn active" data-status-filter="PENDING_APPROVAL">Pending Review</button>
+          <button class="filter-btn" data-status-filter="PAUSED">Paused / Attention</button>
+          <button class="filter-btn" data-status-filter="APPROVED">Approved</button>
+          <button class="filter-btn" data-status-filter="SUBMITTED">Submitted</button>
+          <button class="filter-btn" data-status-filter="ALL">All Applications</button>
+        </div>
+      </div>
+
+      <div id="applicationsList" class="applications-container">
+        <div class="loading-spinner">Loading applications...</div>
+      </div>
+    </section>
+
+    <!-- TAB 3: JOBS & MATCHES FEED -->
+    <section id="tab-jobs" class="tab-pane">
+      <div class="view-header">
+        <div>
+          <h2>Canonical Jobs & Fit Scored Feed</h2>
+          <p class="subtitle">Search canonicalized jobs with anti-fabrication candidate fit breakdown.</p>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="jobSearchInput" class="input-text" placeholder="Search by title or company...">
+          <select id="minScoreFilter" class="input-select">
+            <option value="">All Scores</option>
+            <option value="0.7">Strong Match (≥ 70%)</option>
+            <option value="0.5">Moderate Match (≥ 50%)</option>
+          </select>
+          <button id="btnSearchJobs" class="btn btn-primary">Search</button>
+        </div>
+      </div>
+
+      <div id="jobsList" class="jobs-grid">
+        <div class="loading-spinner">Loading jobs...</div>
+      </div>
+    </section>
+
+    <!-- TAB 4: CANDIDATE FACT STORE -->
+    <section id="tab-facts" class="tab-pane">
+      <div class="view-header">
+        <div>
+          <h2>Candidate Grounded Fact Store</h2>
+          <p class="subtitle">Zero-Hallucination Invariant: All tailored resume bullets and answers must link to a verified fact.</p>
+        </div>
+        <div>
+          <button id="btnOpenAddFactModal" class="btn btn-primary">+ Add New Fact</button>
+        </div>
+      </div>
+
+      <div class="fact-category-tabs">
+        <button class="category-tab active" data-category="ALL">All Facts</button>
+        <button class="category-tab" data-category="skill">Skills</button>
+        <button class="category-tab" data-category="experience">Experience</button>
+        <button class="category-tab" data-category="education">Education</button>
+        <button class="category-tab" data-category="project">Projects</button>
+        <button class="category-tab" data-category="certification">Certifications</button>
+      </div>
+
+      <div id="factsList" class="facts-grid">
+        <div class="loading-spinner">Loading candidate facts...</div>
+      </div>
+    </section>
+
+    <!-- TAB 5: PIPELINE CONTROLS -->
+    <section id="tab-pipeline" class="tab-pane">
+      <div class="view-header">
+        <div>
+          <h2>Pipeline Orchestration & Diagnostics</h2>
+          <p class="subtitle">Control autonomous crawlers, event outbox consumer, and distributed lease scheduler.</p>
+        </div>
+      </div>
+
+      <div class="pipeline-grid">
+        <!-- On-demand Career Crawl Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🕷️ On-Demand Career Page Crawler</h3>
+          </div>
+          <p class="card-desc">Fingerprints career architecture (Talent-Pool vs Hub-Spoke), registers job source with politeness rules, and ingests postings.</p>
+          <form id="crawlForm" class="crawl-form">
+            <div class="form-group">
+              <label for="crawlUrl">Career Page URL:</label>
+              <input type="url" id="crawlUrl" class="input-text" placeholder="https://example.com/careers" required>
+            </div>
+            <div class="form-group">
+              <label for="crawlCompanyName">Company Name (Optional):</label>
+              <input type="text" id="crawlCompanyName" class="input-text" placeholder="Example Tech">
+            </div>
+            <button type="submit" id="btnCrawl" class="btn btn-primary">Start Ingestion Crawl</button>
+          </form>
+          <div id="crawlFeedback" class="feedback-panel hidden"></div>
+        </div>
+
+        <!-- Event Outbox Consumer Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>⚡ Outbox Event Consumer</h3>
+          </div>
+          <p class="card-desc">Pulls unpublished events with <code>FOR UPDATE SKIP LOCKED</code> and triggers the reactive pipeline cascade.</p>
+          <div class="action-box">
+            <button id="btnTriggerConsumer" class="btn btn-secondary">Process Outbox Batch (SKIP LOCKED)</button>
+          </div>
+          <div id="consumerFeedback" class="feedback-panel hidden"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL 1: HUMAN REVIEW & APPROVAL MODAL -->
+  <div id="approvalModal" class="modal-backdrop hidden">
+    <div class="modal-dialog large">
+      <div class="modal-header">
+        <div>
+          <h3 id="modalJobTitle">Review Application</h3>
+          <p id="modalCompanySubtitle" class="modal-subtitle">Company • Status</p>
+        </div>
+        <button id="btnCloseApprovalModal" class="modal-close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Modal Tabs -->
+        <div class="modal-tabs">
+          <button class="modal-tab active" data-modal-tab="overview">Match & Facts Audit</button>
+          <button class="modal-tab" data-modal-tab="resume">Tailored Resume Preview</button>
+          <button class="modal-tab" data-modal-tab="coverLetter">Cover Letter</button>
+          <button class="modal-tab" data-modal-tab="answers">ATS Form Auto-Fill</button>
+        </div>
+
+        <!-- Tab 1: Match Evidence Audit -->
+        <div id="modalTab-overview" class="modal-tab-content active">
+          <div class="audit-section">
+            <h4>Anti-Fabrication Evidence Checklist</h4>
+            <p class="audit-note">Every match score criterion is verified against Grounded Fact Store entries.</p>
+            <div id="modalEvidenceList" class="evidence-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Tailored Resume Preview -->
+        <div id="modalTab-resume" class="modal-tab-content">
+          <div class="resume-preview-container">
+            <div class="resume-header">
+              <span id="modalResumeTitle" class="font-bold">Resume Version</span>
+              <span id="modalResumeTemplate" class="badge-outline">Template</span>
+            </div>
+            <pre id="modalResumeMarkdown" class="markdown-preview"></pre>
+          </div>
+        </div>
+
+        <!-- Tab 3: Cover Letter -->
+        <div id="modalTab-coverLetter" class="modal-tab-content">
+          <div class="cover-letter-container">
+            <div class="cover-letter-header">
+              <span class="font-bold">Tailored Cover Letter</span>
+              <span class="badge-outline">Grounded Company Citation</span>
+            </div>
+            <div id="modalCoverLetterText" class="letter-content"></div>
+          </div>
+        </div>
+
+        <!-- Tab 4: ATS Form Answers -->
+        <div id="modalTab-answers" class="modal-tab-content">
+          <div class="answers-container">
+            <h4>Form Field Auto-Fill Review</h4>
+            <div id="modalAnswersList" class="answers-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div id="approvalGateStatus" class="approval-gate-indicator">
+          <!-- Populated dynamically: Shows PENDING, APPROVED, etc. -->
+        </div>
+        <div class="modal-actions">
+          <button id="btnModalPause" class="btn btn-ghost text-amber">Pause / Hold</button>
+          <button id="btnModalApprove" class="btn btn-success font-bold">✓ Approve Application</button>
+          <button id="btnModalRunSandbox" class="btn btn-primary">🚀 Execute Sandbox Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ADD CANDIDATE FACT -->
+  <div id="addFactModal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Add Candidate Fact</h3>
+        <button id="btnCloseAddFactModal" class="modal-close-btn">&times;</button>
+      </div>
+      <form id="addFactForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="factCategory">Category:</label>
+            <select id="factCategory" class="input-select" required>
+              <option value="skill">Skill</option>
+              <option value="experience">Experience</option>
+              <option value="education">Education</option>
+              <option value="project">Project</option>
+              <option value="certification">Certification</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="factStatement">Factual Statement:</label>
+            <textarea id="factStatement" class="input-textarea" rows="4" placeholder="e.g. 5+ years of production experience architecting Kubernetes clusters and Terraform infrastructure." required></textarea>
+          </div>
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="factVerified" checked>
+            <label for="factVerified">Mark as Verified Fact</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btnCancelAddFact" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save to Fact Store</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Application Logic JS -->
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
