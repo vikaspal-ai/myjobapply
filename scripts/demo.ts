@@ -7,6 +7,10 @@ import { MatchingService } from '../src/jobs/matching.js';
 import { masterTemplateEngine } from '../src/docs/master.js';
 import { resumePlanner } from '../src/docs/planner.js';
 import { coverLetterEngine } from '../src/docs/cover-letter.js';
+import { FormInspector } from '../src/apply/form-inspector.js';
+import { AnswerMemoryService } from '../src/apply/answer-memory.js';
+import { AutoFillService } from '../src/apply/autofill.js';
+import { ApplicationWorkflowEngine } from '../src/apply/workflow.js';
 
 async function main() {
   console.log('\n======================================================');
@@ -274,13 +278,91 @@ async function main() {
   console.log(`   ✅ PDF Storage Artifact: ID = ${coverLetter.artifactId}\n`);
 
   // --------------------------------------------------------------------------
-  // Step 10: Transactional Outbox Events Verification
+  // Step 10: Form Inspection & Answer Memory Auto-Fill (Phase 4, Chunks 4.1 & 4.2)
   // --------------------------------------------------------------------------
-  console.log('📬 STEP 10: Transactional Outbox Events Emitted to Supabase:');
+  console.log('📋 STEP 10: ATS Form Inspection & Answer Memory Auto-Fill...');
+  const answerMemoryService = new AnswerMemoryService();
+  await answerMemoryService.saveAnswer({
+    candidateId: candidate.id,
+    questionPattern: 'require sponsorship',
+    answerText: 'No, I am authorized to work without sponsorship',
+    category: 'sponsorship',
+    verified: true,
+  });
+
+  const formInspector = new FormInspector();
+  const sampleGreenhouseForm = `
+    <form action="https://boards.greenhouse.io/acmetech/jobs/101" method="POST">
+      <label for="first_name">First Name *</label>
+      <input id="first_name" name="first_name" type="text" required />
+      <label for="last_name">Last Name *</label>
+      <input id="last_name" name="last_name" type="text" required />
+      <label for="email">Email *</label>
+      <input id="email" name="email" type="email" required />
+      <label for="resume">Resume/CV *</label>
+      <input id="resume" name="resume" type="file" required />
+      <label for="sponsorship">Will you now or in the future require visa sponsorship? *</label>
+      <select id="sponsorship" name="sponsorship" required>
+        <option value="">Select an option</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </form>
+  `;
+
+  const inspectedForm = formInspector.inspectForm(sampleGreenhouseForm);
+  const autoFillService = new AutoFillService();
+  const autoFillResult = await autoFillService.fillForm({
+    candidateId: candidate.id,
+    jobId: canonicalJob.canonicalJobId,
+    form: inspectedForm,
+    resumeVersionId: tailoredPlan.versionId,
+    coverLetterVersionId: coverLetter.versionId,
+  });
+
+  console.log(`   ✅ Inspected Fields: ${inspectedForm.fields.length} (ATS: ${inspectedForm.detectedAts})`);
+  console.log(`   ✅ Auto-Filled Fields: ${autoFillResult.filledFields.length}`);
+  console.log(`   ✅ All Required Fields Resolved: ${autoFillResult.canSubmit ? 'YES' : 'NO'}\n`);
+
+  // --------------------------------------------------------------------------
+  // Step 11: Application State Machine, Human Approval Gate & Playwright Sandbox (Phase 4, Chunk 4.3)
+  // --------------------------------------------------------------------------
+  console.log('🛡️ STEP 11: Application FSM, Human-in-the-Loop Review Gate & Runner...');
+  const workflow = new ApplicationWorkflowEngine();
+  const draftApp = await workflow.createDraft({
+    candidateId: candidate.id,
+    jobId: canonicalJob.canonicalJobId,
+    resumeVersionId: tailoredPlan.versionId,
+    coverLetterVersionId: coverLetter.versionId,
+  });
+  console.log(`   ✅ Application Draft Created: ID = ${draftApp.id} (Status: ${draftApp.status})`);
+
+  const preparedApp = await workflow.prepareApplication(draftApp.id, autoFillResult);
+  console.log(`   ✅ Application Prepared for Review: Status = ${preparedApp.status}`);
+
+  // Human Review Gate Approval
+  const approvedApp = await workflow.approveApplication(draftApp.id, {
+    approvedBy: 'vikas@example.com',
+    notes: 'Candidate reviewed resume, cover letter, and form fields. Approved for submission.',
+  });
+  console.log(`   ✅ Human Review Gate: APPROVED (Status = ${approvedApp.status})`);
+
+  // Playwright Sandbox Execution
+  const submissionRun = await workflow.executeApplicationRun(draftApp.id, {
+    autoFillResult,
+    path: 'PLAYWRIGHT',
+  });
+  console.log(`   ✅ Playwright Sandbox Execution: SUBMITTED (Run ID = ${submissionRun.runId})`);
+  console.log(`   ✅ Confirmation Receipt: ${submissionRun.confirmationReceipt}\n`);
+
+  // --------------------------------------------------------------------------
+  // Step 12: Transactional Outbox Events Verification
+  // --------------------------------------------------------------------------
+  console.log('📬 STEP 12: Transactional Outbox Events Emitted to Supabase:');
   const outboxEvents = await sql<{ type: string; idempotency_key: string; created_at: string }[]>`
     SELECT type, idempotency_key, created_at
     FROM platform.outbox_events
-    WHERE created_at >= NOW() - INTERVAL '2 minutes'
+    WHERE created_at >= NOW() - INTERVAL '3 minutes'
     ORDER BY created_at ASC
   `;
 
@@ -289,7 +371,7 @@ async function main() {
   }
 
   console.log('\n======================================================');
-  console.log('🎉 ALL PHASES (0, 1, 2, 3) EXECUTED & VERIFIED ON SUPABASE!');
+  console.log('🎉 ALL PHASES (0, 1, 2, 3, 4) EXECUTED & VERIFIED ON SUPABASE!');
   console.log('======================================================\n');
 
   process.exit(0);

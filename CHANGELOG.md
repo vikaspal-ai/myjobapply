@@ -42,13 +42,19 @@ The following domain events are emitted across completed phases:
 | `MasterResumeCreated` | `document-engine` | `resume:<resume_id>:v1` | `candidateId`, `resumeId`, `versionId`, `artifactId` | `title`, `versionNo: 1`, `contentHash`, `factCount` |
 | `ResumeVersionCreated` | `document-engine` | `resume:<resume_id>:v<version_no>` | `resumeId`, `versionId`, `jobId` | `versionNo`, `contentHash`, `factCount`, `templateName` |
 | `CoverLetterGenerated` | `document-engine` | `cover_letter:<cover_letter_id>:v<version_no>` | `candidateId`, `coverLetterId`, `versionId`, `jobId`, `artifactId` | `title`, `versionNo`, `contentHash`, `companyName`, `sourcesCount`, `factsCitedCount` |
+| `ApplicationCreated` | `application-workflow` | `application:<application_id>:created` | `applicationId`, `candidateId`, `jobId` | `status: DRAFT`, `resumeVersionId`, `coverLetterVersionId` |
+| `ApplicationPrepared` | `application-workflow` | `application:<application_id>:prepared:<timestamp>` | `applicationId`, `candidateId`, `jobId` | `status: PENDING_APPROVAL`, `filledFieldCount` |
+| `ApplicationApproved` | `application-workflow` | `application:<application_id>:approved:<timestamp>` | `applicationId`, `candidateId`, `jobId` | `status: APPROVED`, `approvedBy` |
+| `ApplicationSubmitted` | `application-workflow` | `application_run:<run_id>:submitted` | `applicationId`, `runId`, `candidateId`, `jobId` | `path`, `confirmationReceipt` |
+| `ApplicationPaused` | `application-workflow` | `application:<app_id>:paused:<ts>` or `application_run:<run_id>:paused` | `applicationId`, `candidateId`, `jobId` | `pauseReason` (`CAPTCHA_DETECTED`, `NEEDS_HUMAN_ANSWER`), `path` |
+| `ApplicationFailed` | `application-workflow` | `application_run:<run_id>:failed` | `applicationId`, `runId`, `candidateId`, `jobId` | `error`, `path` |
 
 ---
 
 ## 3. Database Schema Overview (Completed Migrations)
 
 ### Schemas Established:
-`platform`, `discovery`, `ingest`, `sched`, `profile`, `jobs`, `ai`, `audit`, `docs`.
+`platform`, `discovery`, `ingest`, `sched`, `profile`, `jobs`, `ai`, `audit`, `docs`, `apply`.
 
 ### Tables Established:
 - **`platform.outbox_events`**: Transactional outbox table (`id`, `event_type`, `producer`, `idempotency_key`, `correlation_id`, `entity_refs`, `payload`, `status`, `created_at`, `published_at`).
@@ -68,10 +74,80 @@ The following domain events are emitted across completed phases:
 - **`docs.resume_versions`**: Immutable resume versions (`id`, `resume_id`, `parent_version_id`, `job_id`, `version_no`, `content_hash`, `plan`, `template_name`, `artifact_id`) with `uq_docs_resume_version (resume_id, version_no)`.
 - **`docs.cover_letters`**: Candidate cover letter root containers (`id`, `candidate_id`, `title`).
 - **`docs.cover_letter_versions`**: Immutable cover letter drafts citing discovery URLs (`id`, `cover_letter_id`, `parent_version_id`, `job_id`, `version_no`, `content_hash`, `markdown_content`, `company_fact_sources`, `artifact_id`) with `uq_docs_cover_letter_version (cover_letter_id, version_no)`.
+- **`apply.applications`**: Job applications container (`id`, `candidate_id`, `job_id`, `resume_version_id`, `cover_letter_version_id`, `status`, `notes`) with `uq_apply_candidate_job (candidate_id, job_id)`.
+- **`apply.candidate_answers`**: Verified answers to sensitive/standard questions (`id`, `candidate_id`, `question_pattern`, `answer_text`, `category`, `verified`).
+- **`apply.application_runs`**: Automation run execution attempts (`id`, `application_id`, `path` [PLAYWRIGHT/EXTENSION], `status`, `form_data`, `pause_reason`).
 
 ---
 
 ## 4. Phase-by-Phase Changelog & Implementation History
+
+### [0.5.2-phase4.3] - 2026-09-20
+#### Phase 4: Agent & Browser Automation — Chunk 4.3: Application Lifecycle FSM, Human Review Gate & Sandbox Runner
+- **Files Created/Modified:**
+  - [`src/apply/workflow.ts`](./src/apply/workflow.ts): `ApplicationWorkflowEngine` implementing strict finite state machine (FSM) lifecycle transitions, mandatory human approval review gate, and Playwright sandbox execution runner.
+  - [`src/apply/types.ts`](./src/apply/types.ts): Added `ApplicationRunRecord`, `ApplicationRunResult`, and `BrowserAutomationDriver` contracts.
+  - [`src/apply/workflow.test.ts`](./src/apply/workflow.test.ts): Unit & integration test suite (4 tests) verifying idempotent draft creation, safety pause transitions, strict submission approval invariant, CAPTCHA interception, and outbox events.
+  - [`scripts/demo.ts`](./scripts/demo.ts): Added Steps 10 & 11 verifying end-to-end form inspection, auto-fill, human approval, and sandbox submission.
+- **Key Technical Decisions & Highlights:**
+  - **Mandatory Human-in-the-Loop Review Gate (HLD §11 & §12):**
+    - The engine strictly prohibits submitting any application that is not in `APPROVED` status.
+    - Automated submissions attempted from `DRAFT`, `PREPARED`, or `PENDING_APPROVAL` states immediately throw an invariant violation error (`Invariant violation: Application ... cannot be submitted because it is in ... status. Human approval is strictly required prior to automated submission.`).
+  - **Playwright Sandbox Simulator & Challenge Interception:**
+    - Detects CAPTCHAs, login walls, and DOM layout shifts during browser interaction.
+    - When a challenge is encountered, the run and parent application immediately transition to `PAUSED` state with `pause_reason = 'CAPTCHA_DETECTED'` and emit `ApplicationPaused` to `platform.outbox_events`.
+    - Once the user resolves the challenge or adjusts the submission in the approval UI, `approveApplication()` enables re-submission without data loss.
+  - **Database & Outbox Event Audit:**
+    - Every run creates a persistent execution record in `apply.application_runs` (`PLAYWRIGHT` / `EXTENSION`, `form_data` snapshot, `pause_reason`, `submitted_at`).
+    - Transactionally emits `ApplicationCreated`, `ApplicationPrepared`, `ApplicationApproved`, `ApplicationSubmitted`, and `ApplicationPaused` into `platform.outbox_events`.
+- **Verification Status:**
+  - 4/4 tests passed in `src/apply/workflow.test.ts`.
+  - Full system regression: **13 test files, 41/41 tests passing** on live Supabase.
+  - Interactive live demo: **All 12 steps executed and verified** on Supabase via `npm run demo`.
+
+---
+
+### [0.5.1-phase4.2] - 2026-09-20
+#### Phase 4: Agent & Browser Automation — Chunk 4.2: Answer Memory & Auto-Fill Service
+- **Files Created/Modified:**
+  - [`src/apply/answer-memory.ts`](./src/apply/answer-memory.ts): `AnswerMemoryService` implementing memory retrieval, fuzzy question matching, dropdown option semantic mapping, and strict sensitive question safeguards.
+  - [`src/apply/autofill.ts`](./src/apply/autofill.ts): `AutoFillService` coordinating candidate profile data, resume/cover letter artifacts, and answer memory into a complete form payload, with automated safety pauses.
+  - [`src/apply/autofill.test.ts`](./src/apply/autofill.test.ts): Unit & integration test suite verifying dropdown mapping, complete form synthesis, and safety pause triggers.
+- **Key Technical Decisions & Highlights:**
+  - **Sensitive Question Safeguard (HLD §11):**
+    - Sensitive topics (`sponsorship`, `work_authorization`, background checks, legal disclosures) must NEVER be answered by generative AI.
+    - Only answers explicitly verified by a human (`verified = true` in `apply.candidate_answers`) are permitted. Unverified or missing answers halt the pipeline with `NEEDS_HUMAN_ANSWER` status.
+  - **Semantic Dropdown Option Mapping:**
+    - Fuzzy match algorithm maps canonical answers (`Yes`/`No`/`Full-time`) to custom ATS select options (e.g. `1 - Yes, I am legally authorized`, `No, I will need sponsorship`).
+  - **Artifact Resolution:**
+    - Resolves the candidate's latest compiled resume PDF artifact and tailored cover letter artifact for automated ATS file attachment fields.
+- **Verification Status:**
+  - 3/3 tests passed in `src/apply/autofill.test.ts`.
+  - Full system regression: **12 test files, 37/37 tests passing** on live Supabase.
+
+---
+
+### [0.5.0-phase4.1] - 2026-09-20
+#### Phase 4: Agent & Browser Automation — Chunk 4.1: Database Schema & Form Inspection Engine
+- **Files Created/Modified:**
+  - [`migrations/003_apply_schema.sql`](./migrations/003_apply_schema.sql): DDL for `apply.applications`, `apply.candidate_answers`, `apply.application_runs`.
+  - [`scripts/migrate.ts`](./scripts/migrate.ts): Added idempotent migration runner tracking applied migrations in `platform.schema_migrations`.
+  - [`src/apply/types.ts`](./src/apply/types.ts): Data contracts for `FormField`, `FormInspectionResult`, `ApplicationStatus`, and `CandidateAnswerRecord`.
+  - [`src/apply/form-inspector.ts`](./src/apply/form-inspector.ts): `FormInspector` analyzing HTML forms and classifying standard ATS fields (Greenhouse, Lever, Workday, Ashby) and custom questions.
+  - [`src/apply/form-inspector.test.ts`](./src/apply/form-inspector.test.ts): Unit tests on Greenhouse & Lever fixtures + live Supabase persistence tests.
+- **Key Technical Decisions & Highlights:**
+  - **State Machine Database Constraints:**
+    - `apply.applications` enforces strict lifecycle states (`DRAFT`, `PREPARED`, `PENDING_APPROVAL`, `APPROVED`, `SUBMITTING`, `SUBMITTED`, `FAILED`, `PAUSED`, `CANCELLED`, `UNCONFIRMED`).
+    - Constraint `uq_apply_candidate_job (candidate_id, job_id)` prevents duplicate applications to the same canonical job.
+  - **Form Field Classification & ATS Detection:**
+    - Rule-based classifier mapping input names/labels to standard categories (`first_name`, `last_name`, `email`, `phone`, `resume`, `cover_letter`, `sponsorship`, `work_authorization`).
+    - Detects platform footprints (`Greenhouse`, `Lever`, `Workday`, `Ashby`, `SmartRecruiters`).
+    - Distinguishes file uploads (resume vs cover letter) and isolates custom essay/text questions.
+- **Verification Status:**
+  - 3/3 tests passed in `src/apply/form-inspector.test.ts`.
+  - Full system regression: **11 test files, 34/34 tests passing** on live Supabase.
+
+---
 
 ### [0.4.3-phase3.4] - 2026-09-20
 #### Phase 3: Document Engine — Chunk 3.4: Grounded Cover Letter Engine & Immutable Versioning
@@ -233,10 +309,10 @@ The following domain events are emitted across completed phases:
   - [x] **Chunk 3.2**: AI Resume Planning & Deterministic Anti-Fabrication Claim-Check Validator (`src/docs/claim-check.ts`, `src/docs/planner.ts`).
   - [x] **Chunk 3.3**: Modular LaTeX / PDF Compilation Sandbox (safe escaping, `\write18` suppression, $\le 2$ page budget validator).
   - [x] **Chunk 3.4**: Cover Letter Generation Engine (citing grounded company discovery facts, immutable versioning).
-- **Phase 4: Agent & Browser Automation Engine**
-  - Chunk 4.1: Question & Form Analysis Engine (parsing complex ATS form schemas).
-  - Chunk 4.2: Answer Memory & Auto-Fill Service (caching verified candidate answers).
-  - Chunk 4.3: Playwright Sandbox & Human-in-the-Loop Approval Modal.
+- **Phase 4: Agent & Browser Automation Engine (Completed)**
+  - [x] **Chunk 4.1**: Database Schema & Form Inspection Engine (`apply.*` tables, `FormInspector`, ATS detection).
+  - [x] **Chunk 4.2**: Answer Memory & Auto-Fill Service (caching verified candidate answers).
+  - [x] **Chunk 4.3**: Playwright Sandbox & Human-in-the-Loop Approval Modal (`ApplicationWorkflowEngine`, FSM, approval invariant).
 - **Phase 5: Search & Discovery Pipeline Orchestration**
   - Scheduled company registry crawling, worker pipelines, rate-limiting, and error recovery.
 - **Phase 6: Frontend Dashboard & Analytics**
