@@ -7,7 +7,7 @@ export async function candidateRoutes(app: FastifyInstance) {
   // GET /api/candidates - List all candidate profiles
   app.get('/api/candidates', async (_req, reply) => {
     const candidates = await db`
-      SELECT id, full_name, email, created_at, updated_at
+      SELECT id, full_name, email, preferred_locations, current_location, created_at, updated_at
       FROM profile.candidate_profiles
       ORDER BY created_at DESC
     `;
@@ -18,6 +18,8 @@ export async function candidateRoutes(app: FastifyInstance) {
         id: c.id,
         fullName: c.full_name,
         email: c.email,
+        preferredLocations: c.preferred_locations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote'],
+        currentLocation: c.current_location || 'India',
         createdAt: c.created_at,
         updatedAt: c.updated_at,
       })),
@@ -27,7 +29,7 @@ export async function candidateRoutes(app: FastifyInstance) {
   // GET /api/candidates/:id - Get specific candidate profile
   app.get<{ Params: { id: string } }>('/api/candidates/:id', async (req, reply) => {
     const [candidate] = await db`
-      SELECT id, full_name, email, created_at, updated_at
+      SELECT id, full_name, email, preferred_locations, current_location, created_at, updated_at
       FROM profile.candidate_profiles
       WHERE id = ${req.params.id}
     `;
@@ -42,8 +44,38 @@ export async function candidateRoutes(app: FastifyInstance) {
         id: candidate.id,
         fullName: candidate.full_name,
         email: candidate.email,
+        preferredLocations: candidate.preferred_locations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote'],
+        currentLocation: candidate.current_location || 'India',
         createdAt: candidate.created_at,
         updatedAt: candidate.updated_at,
+      },
+    });
+  });
+
+  // PATCH /api/candidates/:id/preferences - Update location preferences
+  app.patch<{
+    Params: { id: string };
+    Body: { preferredLocations?: string[]; currentLocation?: string };
+  }>('/api/candidates/:id/preferences', async (req, reply) => {
+    const { preferredLocations, currentLocation } = req.body || {};
+    const [updated] = await db`
+      UPDATE profile.candidate_profiles
+      SET preferred_locations = COALESCE(${preferredLocations || null}, preferred_locations),
+          current_location = COALESCE(${currentLocation || null}, current_location),
+          updated_at = now()
+      WHERE id = ${req.params.id}
+      RETURNING id, full_name, email, preferred_locations, current_location, updated_at
+    `;
+
+    return reply.send({
+      success: true,
+      data: {
+        id: updated.id,
+        fullName: updated.full_name,
+        email: updated.email,
+        preferredLocations: updated.preferred_locations,
+        currentLocation: updated.current_location,
+        updatedAt: updated.updated_at,
       },
     });
   });

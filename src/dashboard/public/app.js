@@ -5,6 +5,7 @@ const state = {
   activeTab: 'overview',
   appStatusFilter: 'PENDING_APPROVAL',
   factCategoryFilter: 'ALL',
+  selectedLocation: 'all',
   selectedAppId: null,
 };
 
@@ -71,6 +72,22 @@ function setupNavigation() {
       state.appStatusFilter = btn.dataset.statusFilter;
       await loadApplications();
     });
+  });
+
+  // Location Filter Chips
+  const locChips = document.querySelectorAll('.loc-chip');
+  locChips.forEach(chip => {
+    chip.addEventListener('click', async () => {
+      locChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.selectedLocation = chip.dataset.loc || 'all';
+      await loadJobs();
+    });
+  });
+
+  // Real Only Toggle
+  document.getElementById('chkRealOnly')?.addEventListener('change', async () => {
+    await loadJobs();
   });
 
   // Job Search Button
@@ -461,12 +478,14 @@ async function loadJobs() {
     const candidateQuery = state.activeCandidateId ? `&candidateId=${state.activeCandidateId}` : '';
     const searchQuery = search ? `&search=${encodeURIComponent(search)}` : '';
     const minScoreQuery = minScore ? `&minScore=${minScore}` : '';
+    const locQuery = state.selectedLocation && state.selectedLocation !== 'all' ? `&location=${state.selectedLocation}` : '';
+    const realOnly = document.getElementById('chkRealOnly')?.checked ? '&realOnly=true' : '';
 
-    const res = await api(`/api/jobs?limit=50${candidateQuery}${searchQuery}${minScoreQuery}`);
+    const res = await api(`/api/jobs?limit=50${candidateQuery}${searchQuery}${minScoreQuery}${locQuery}${realOnly}`);
     const jobs = res.data || [];
 
     if (jobs.length === 0) {
-      container.innerHTML = '<div class="card text-center py-4 text-muted">No jobs matching criteria</div>';
+      container.innerHTML = '<div class="card text-center py-4 text-muted">No jobs matching selected location and filters</div>';
       return;
     }
 
@@ -480,6 +499,8 @@ async function loadJobs() {
         ? `<span class="match-score-badge">🎯 ${matchScore}% Fit</span>`
         : '<span class="badge-outline">Unscored</span>';
 
+      const locText = j.locationDisplay || (j.location?.city ? `${j.location.city}, India` : (j.location?.type || 'Remote / Hybrid'));
+
       card.innerHTML = `
         <div>
           <div class="job-header">
@@ -487,14 +508,19 @@ async function loadJobs() {
             ${scoreBadge}
           </div>
           <div class="job-company">🏢 <strong>${j.companyName}</strong> • ${j.atsType}</div>
-          <div class="text-sm text-dim mb-2">📍 ${j.location?.type || 'Remote / Hybrid'}</div>
+          <div class="mt-2 mb-2">
+            <span class="location-badge">📍 ${locText}</span>
+            ${!j.isSynthetic ? '<span class="badge-outline text-green ml-2">✓ Verified Live</span>' : '<span class="badge-outline text-dim ml-2">Test Fixture</span>'}
+          </div>
         </div>
         <div>
           <div class="app-actions mt-4">
             <button class="btn btn-primary btn-sm btn-draft" data-job-id="${j.id}">
               + Draft Application
             </button>
-            <a href="${j.applyUrl}" target="_blank" class="btn btn-ghost btn-sm">External Link ↗</a>
+            <a href="${j.applyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">
+              Apply Page ↗
+            </a>
           </div>
         </div>
       `;

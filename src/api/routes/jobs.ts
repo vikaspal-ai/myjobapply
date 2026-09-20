@@ -11,13 +11,33 @@ export async function jobRoutes(app: FastifyInstance) {
       status?: string;
       candidateId?: string;
       minScore?: string;
+      location?: string;
+      realOnly?: string;
       limit?: string;
       offset?: string;
     };
   }>('/api/jobs', async (req, reply) => {
-    const { search, status = 'ACTIVE', candidateId, minScore, limit = '50', offset = '0' } = req.query;
+    const { search, status = 'ACTIVE', candidateId, minScore, location, realOnly, limit = '50', offset = '0' } = req.query;
     const numLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const numOffset = Math.max(0, parseInt(offset, 10) || 0);
+
+    // Location SQL fragment
+    const locLower = location?.toLowerCase().trim();
+    const locationFilter = !locLower || locLower === 'all'
+      ? db``
+      : locLower === 'remote'
+      ? db`AND (j.location->>'workplaceType' = 'remote' OR j.location->>'type' = 'REMOTE' OR j.location::text ILIKE '%remote%' OR j.title ILIKE '%remote%')`
+      : locLower === 'bengaluru' || locLower === 'bangalore'
+      ? db`AND (j.location->>'city' ILIKE '%bengaluru%' OR j.location->>'city' ILIKE '%bangalore%' OR j.location::text ILIKE '%bengaluru%' OR j.location::text ILIKE '%bangalore%' OR j.description ILIKE '%bengaluru%' OR j.description ILIKE '%bangalore%')`
+      : locLower === 'mumbai'
+      ? db`AND (j.location->>'city' ILIKE '%mumbai%' OR j.location::text ILIKE '%mumbai%' OR j.description ILIKE '%mumbai%')`
+      : locLower === 'pune'
+      ? db`AND (j.location->>'city' ILIKE '%pune%' OR j.location::text ILIKE '%pune%' OR j.description ILIKE '%pune%')`
+      : db`AND (j.location->>'city' ILIKE ${'%' + locLower + '%'} OR j.location::text ILIKE ${'%' + locLower + '%'} OR j.description ILIKE ${'%' + locLower + '%'})`;
+
+    const realFilter = realOnly === 'true'
+      ? db`AND (j.is_synthetic = false OR j.is_synthetic IS NULL)`
+      : db``;
 
     let rows;
     if (candidateId) {
@@ -33,6 +53,7 @@ export async function jobRoutes(app: FastifyInstance) {
           j.salary,
           j.apply_url,
           j.source_attribution,
+          j.is_synthetic,
           j.created_at,
           c.name as company_name,
           (SELECT domain FROM discovery.company_domains cd WHERE cd.company_id = c.id LIMIT 1) as company_domain,
@@ -45,6 +66,8 @@ export async function jobRoutes(app: FastifyInstance) {
         WHERE (${status} = 'ALL' OR j.status = ${status})
           ${search ? db`AND (j.title ILIKE ${'%' + search + '%'} OR c.name ILIKE ${'%' + search + '%'})` : db``}
           ${minScore ? db`AND jm.score >= ${parseFloat(minScore)}` : db``}
+          ${locationFilter}
+          ${realFilter}
         ORDER BY jm.score DESC NULLS LAST, j.created_at DESC
         LIMIT ${numLimit} OFFSET ${numOffset}
       `;
@@ -60,6 +83,7 @@ export async function jobRoutes(app: FastifyInstance) {
           j.salary,
           j.apply_url,
           j.source_attribution,
+          j.is_synthetic,
           j.created_at,
           c.name as company_name,
           (SELECT domain FROM discovery.company_domains cd WHERE cd.company_id = c.id LIMIT 1) as company_domain
@@ -67,6 +91,8 @@ export async function jobRoutes(app: FastifyInstance) {
         JOIN discovery.companies c ON j.company_id = c.id
         WHERE (${status} = 'ALL' OR j.status = ${status})
           ${search ? db`AND (j.title ILIKE ${'%' + search + '%'} OR c.name ILIKE ${'%' + search + '%'})` : db``}
+          ${locationFilter}
+          ${realFilter}
         ORDER BY j.created_at DESC
         LIMIT ${numLimit} OFFSET ${numOffset}
       `;
@@ -74,24 +100,40 @@ export async function jobRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: rows.map(r => ({
-        id: r.id,
-        title: r.title,
-        companyName: r.company_name,
-        companyDomain: r.company_domain,
-        status: r.status,
-        roleFamily: r.role_family,
-        seniority: r.seniority,
-        location: r.location,
-        salary: r.salary,
-        applyUrl: r.apply_url,
-        atsType: r.source_attribution?.ats_name ?? 'generic',
-        createdAt: r.created_at,
-        match: r.match_score !== undefined && r.match_score !== null ? {
-          score: Number(r.match_score),
-          verdict: r.match_verdict,
-        } : undefined,
-      })),
+      data: rows.map(r => {
+        let locationDisplay = 'Location Not Specified';
+        if (r.location?.city) {
+          locationDisplay = `${r.location.city}${r.location.country ? ', ' + r.location.country : ''}`;
+          if (r.location.workplaceType && r.location.workplaceType !== 'unknown') {
+            locationDisplay += ` (${r.location.workplaceType.charAt(0).toUpperCase() + r.location.workplaceType.slice(1)})`;
+          }
+        } else if (r.location?.type === 'REMOTE' || r.location?.workplaceType === 'remote') {
+          locationDisplay = 'Remote';
+        } else if (r.location?.country) {
+          locationDisplay = String(r.location.country);
+        }
+
+        return {
+          id: r.id,
+          title: r.title,
+          companyName: r.company_name,
+          companyDomain: r.company_domain,
+          status: r.status,
+          roleFamily: r.role_family,
+          seniority: r.seniority,
+          location: r.location,
+          locationDisplay,
+          isSynthetic: Boolean(r.is_synthetic),
+          salary: r.salary,
+          applyUrl: r.apply_url,
+          atsType: r.source_attribution?.ats_name ?? 'generic',
+          createdAt: r.created_at,
+          match: r.match_score !== undefined && r.match_score !== null ? {
+            score: Number(r.match_score),
+            verdict: r.match_verdict,
+          } : undefined,
+        };
+      }),
     });
   });
 

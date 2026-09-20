@@ -32,7 +32,11 @@ export interface MatchEvaluationResult {
  */
 export function evaluateCandidateFit(
   candidateFacts: CandidateFact[],
-  requirements: ExtractedRequirements
+  requirements: ExtractedRequirements,
+  locationContext?: {
+    preferredLocations?: string[];
+    jobLocation?: any;
+  }
 ): { score: number; verdict: 'PASS' | 'FAIL' | 'UNKNOWN'; criteria: MatchCriterionResult[] } {
   const criteria: MatchCriterionResult[] = [];
   const validFactIds = new Set(candidateFacts.map((f) => f.id));
@@ -91,6 +95,36 @@ export function evaluateCandidateFit(
     }
   }
 
+  // Evaluate Location Fit if locationContext is provided
+  if (locationContext?.jobLocation && locationContext?.preferredLocations && locationContext.preferredLocations.length > 0) {
+    const jobLoc = locationContext.jobLocation;
+    const preferred = locationContext.preferredLocations.map((l) => l.toLowerCase());
+    const isRemote =
+      jobLoc.workplaceType === 'remote' ||
+      jobLoc.type === 'REMOTE' ||
+      preferred.includes('remote');
+
+    const city = jobLoc.city?.toLowerCase();
+    const country = jobLoc.country?.toLowerCase();
+    const cityMatched = city && preferred.some((p) => p.includes(city) || city.includes(p));
+
+    if (cityMatched || (isRemote && (country === 'india' || !country || country === 'unknown'))) {
+      criteria.push({
+        criterion: `Location Match: ${jobLoc.city || 'Remote'}`,
+        result: 'met',
+        factIds: [],
+        evidence: [`Job location matches candidate target: ${jobLoc.city || 'Remote'}`],
+      });
+    } else if (country && country !== 'india' && country !== 'unknown' && !isRemote) {
+      criteria.push({
+        criterion: `Location Compatibility: ${jobLoc.city || jobLoc.country}`,
+        result: 'missing',
+        factIds: [],
+        evidence: [`Job location (${jobLoc.city || jobLoc.country}) is outside candidate target cities (${locationContext.preferredLocations.join(', ')})`],
+      });
+    }
+  }
+
   // Calculate deterministic score (0-100)
   const rawScore = ((metCount + partialCount) / totalRequired) * 100;
   const score = Math.min(Math.round(rawScore), 100);
@@ -114,14 +148,21 @@ export class MatchingService {
   async matchJob(jobId: string, candidateId: string): Promise<MatchEvaluationResult> {
     if (!sql) throw new Error('Database client not initialized');
 
-    // 1. Fetch Candidate Facts
+    // 1. Fetch Candidate Facts and Preferences
     const facts = await sql<CandidateFact[]>`
       SELECT id, candidate_id as "candidateId", category, statement, verified
       FROM profile.candidate_facts
       WHERE candidate_id = ${candidateId} AND verified = true
     `;
 
-    // 2. Fetch Job Requirements
+    const [candidateProfile] = await sql<{ preferred_locations: string[]; current_location: string }[]>`
+      SELECT preferred_locations, current_location
+      FROM profile.candidate_profiles
+      WHERE id = ${candidateId}
+      LIMIT 1
+    `;
+
+    // 2. Fetch Job Requirements and Location
     const [reqRow] = await sql<{
       required_skills: string[];
       preferred_skills: string[];
@@ -134,14 +175,24 @@ export class MatchingService {
       LIMIT 1
     `;
 
+    const [jobRow] = await sql<{ location: any; title: string }[]>`
+      SELECT location, title
+      FROM jobs.jobs
+      WHERE id = ${jobId}
+      LIMIT 1
+    `;
+
     const requirements: ExtractedRequirements = {
       requiredSkills: reqRow?.required_skills ?? [],
       preferredSkills: reqRow?.preferred_skills ?? [],
       evidence: reqRow?.evidence ?? [],
     };
 
-    // 3. Deterministic Fit Analysis
-    const evaluation = evaluateCandidateFit(facts, requirements);
+    // 3. Deterministic Fit Analysis with Location Context
+    const evaluation = evaluateCandidateFit(facts, requirements, {
+      preferredLocations: candidateProfile?.preferred_locations,
+      jobLocation: jobRow?.location,
+    });
 
     // 4. Atomic Database Persistence
     return await sql.begin(async (tx) => {

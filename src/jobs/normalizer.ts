@@ -68,6 +68,86 @@ export function extractWorkplaceType(
   return 'unknown';
 }
 
+export function extractStructuredLocation(
+  rawLocation?: any,
+  title?: string,
+  description?: string
+): {
+  city?: string;
+  state?: string;
+  country?: string;
+  workplaceType: 'remote' | 'hybrid' | 'onsite' | 'unknown';
+  formatted: string;
+} {
+  const workplaceType = extractWorkplaceType(rawLocation, title, description);
+  const text = `${JSON.stringify(rawLocation || {})} ${title || ''} ${description || ''}`.toLowerCase();
+
+  let city: string | undefined;
+  let state: string | undefined;
+  let country: string | undefined;
+
+  // Indian Tech Hubs detection
+  if (/\b(bengaluru|bangalore|whitefield|koramangala|bellandur|electronic city)\b/i.test(text)) {
+    city = 'Bengaluru';
+    state = 'Karnataka';
+    country = 'India';
+  } else if (/\b(mumbai|bombay|navi mumbai|thane|andheri|bkc)\b/i.test(text)) {
+    city = 'Mumbai';
+    state = 'Maharashtra';
+    country = 'India';
+  } else if (/\b(pune|poona|hinjewadi|magarpatta|kharadi)\b/i.test(text)) {
+    city = 'Pune';
+    state = 'Maharashtra';
+    country = 'India';
+  } else if (/\b(hyderabad|cyberabad|gachibowli|hitec city|madhapur)\b/i.test(text)) {
+    city = 'Hyderabad';
+    state = 'Telangana';
+    country = 'India';
+  } else if (/\b(delhi|new delhi|noida|gurugram|gurgaon|ncr)\b/i.test(text)) {
+    city = 'Delhi NCR';
+    state = 'Delhi NCR';
+    country = 'India';
+  } else if (/\b(chennai|madras)\b/i.test(text)) {
+    city = 'Chennai';
+    state = 'Tamil Nadu';
+    country = 'India';
+  }
+
+  // Generic country check if not resolved yet
+  if (!country) {
+    if (/\b(india|bharat)\b/i.test(text)) {
+      country = 'India';
+    } else if (/\b(united states|usa|us)\b/i.test(text)) {
+      country = 'United States';
+    } else if (/\b(germany|deutschland|berlin|munich)\b/i.test(text)) {
+      country = 'Germany';
+    } else if (typeof rawLocation === 'string' && rawLocation.trim().length > 0) {
+      country = rawLocation.trim();
+    } else if (rawLocation?.country) {
+      country = String(rawLocation.country);
+    } else if (rawLocation?.address?.addressCountry) {
+      country = String(rawLocation.address.addressCountry);
+    }
+  }
+
+  // Format a clean, human-readable display string
+  const parts: string[] = [];
+  if (city) parts.push(city);
+  if (country && country !== 'unknown') parts.push(country);
+  if (workplaceType !== 'unknown') {
+    parts.push(`(${workplaceType.charAt(0).toUpperCase() + workplaceType.slice(1)})`);
+  }
+  const formatted = parts.length > 0 ? parts.join(', ') : (workplaceType === 'remote' ? 'Remote' : 'Location Not Specified');
+
+  return {
+    city,
+    state,
+    country,
+    workplaceType,
+    formatted,
+  };
+}
+
 export function normalizeJob(
   companyId: string,
   raw: {
@@ -82,24 +162,15 @@ export function normalizeJob(
   const cleanedDesc = cleanHtmlText(raw.description || '');
   const seniority = extractSeniority(cleanedTitle);
   const roleFamily = extractRoleFamily(cleanedTitle);
-  const workplaceType = extractWorkplaceType(raw.location, cleanedTitle, cleanedDesc);
+  const structuredLoc = extractStructuredLocation(raw.location, cleanedTitle, cleanedDesc);
 
-  let country = 'unknown';
-  if (raw.location) {
-    if (typeof raw.location === 'string') {
-      country = raw.location;
-    } else if (raw.location.address?.addressCountry) {
-      country = String(raw.location.address.addressCountry);
-    } else if (raw.location.country) {
-      country = String(raw.location.country);
-    }
-  }
+  const country = structuredLoc.country || 'unknown';
 
-  // Canonical Signature Hash: sha256(company_id + normalized_title + country)
+  // Canonical Signature Hash: sha256(company_id + normalized_title + city + country)
   const normalizedTitleKey = cleanedTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const normalizedCountryKey = country.toLowerCase().trim();
+  const normalizedLocKey = `${structuredLoc.city || ''}:${country}`.toLowerCase().trim();
   const signatureHash = createHash('sha256')
-    .update(`${companyId}:${normalizedTitleKey}:${normalizedCountryKey}`)
+    .update(`${companyId}:${normalizedTitleKey}:${normalizedLocKey}`)
     .digest('hex');
 
   // Strip tracking query parameters from apply URL
@@ -121,8 +192,10 @@ export function normalizeJob(
     roleFamily,
     seniority,
     location: {
-      country: normalizedCountryKey !== 'unknown' ? normalizedCountryKey : undefined,
-      workplaceType,
+      city: structuredLoc.city,
+      state: structuredLoc.state,
+      country: structuredLoc.country ? structuredLoc.country.toLowerCase() : undefined,
+      workplaceType: structuredLoc.workplaceType,
     },
     employmentType: (raw.payload?.employmentType as string) || undefined,
     description: cleanedDesc,
@@ -130,3 +203,4 @@ export function normalizeJob(
     signatureHash,
   };
 }
+

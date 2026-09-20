@@ -197,6 +197,20 @@
         </div>
       </div>
 
+      <!-- Location Filter Bar -->
+      <div class="location-filter-bar mb-4">
+        <span class="filter-label">📍 Target Locations:</span>
+        <button class="loc-chip active" data-loc="all">All Locations</button>
+        <button class="loc-chip" data-loc="mumbai">📍 Mumbai</button>
+        <button class="loc-chip" data-loc="pune">📍 Pune</button>
+        <button class="loc-chip" data-loc="bengaluru">📍 Bengaluru</button>
+        <button class="loc-chip" data-loc="remote">🌐 Remote (India)</button>
+        <label class="real-only-toggle ml-auto">
+          <input type="checkbox" id="chkRealOnly" checked>
+          <span>Live Verified Jobs Only</span>
+        </label>
+      </div>
+
       <div id="jobsList" class="jobs-grid">
         <div class="loading-spinner">Loading jobs...</div>
       </div>
