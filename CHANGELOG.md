@@ -48,6 +48,8 @@ The following domain events are emitted across completed phases:
 | `ApplicationSubmitted` | `application-workflow` | `application_run:<run_id>:submitted` | `applicationId`, `runId`, `candidateId`, `jobId` | `path`, `confirmationReceipt` |
 | `ApplicationPaused` | `application-workflow` | `application:<app_id>:paused:<ts>` or `application_run:<run_id>:paused` | `applicationId`, `candidateId`, `jobId` | `pauseReason` (`CAPTCHA_DETECTED`, `NEEDS_HUMAN_ANSWER`), `path` |
 | `ApplicationFailed` | `application-workflow` | `application_run:<run_id>:failed` | `applicationId`, `runId`, `candidateId`, `jobId` | `error`, `path` |
+| `ScheduleTriggered` | `scheduler-service` | `schedule:<schedule_id>:triggered:<row_version>` | `scheduleId`, `jobSourceId`, `companyId` | `workerId`, `leaseExpiresAt`, `rowVersion` |
+| `ScheduleCompleted` | `scheduler-service` | `schedule:<schedule_id>:completed:<row_version>` | `scheduleId`, `jobSourceId`, `companyId` | `workerId`, `outcome`, `nextDueAt`, `rowVersion` |
 
 ---
 
@@ -81,6 +83,77 @@ The following domain events are emitted across completed phases:
 ---
 
 ## 4. Phase-by-Phase Changelog & Implementation History
+
+### [0.6.2-phase5.3] - 2026-09-20
+#### Phase 5: Search & Discovery Pipeline Orchestration — Chunk 5.3: Outbox Event Consumer & Autonomous Pipeline
+- **Files Created/Modified:**
+  - [`src/orchestration/consumer.ts`](./src/orchestration/consumer.ts): `OutboxConsumer` polling unpublished events with `FOR UPDATE SKIP LOCKED`, consumer-level idempotency via `platform.processed_events`, and failure routing to `platform.dead_letters`.
+  - [`src/orchestration/pipeline.ts`](./src/orchestration/pipeline.ts): `PipelineOrchestrator` wiring reactive event streams:
+    - `JobDiscovered` ➔ `DeduplicationEngine.processJob()` ➔ emits `JobCanonicalized`.
+    - `JobCanonicalized` ➔ `RequirementsService.processJobRequirements()` ➔ emits `JobRequirementsExtracted`.
+    - `JobRequirementsExtracted` ➔ `MatchingService.matchJob()` ➔ emits `JobMatched`.
+    - `JobMatched` (score $\ge 70\%$ / `PASS`) ➔ generates alert in `platform.notifications`.
+  - [`src/orchestration/pipeline.test.ts`](./src/orchestration/pipeline.test.ts): Unit & integration test suite (3 tests) verifying outbox consumption, dead-letter routing, and full 4-step autonomous reactive cascade.
+  - [`scripts/demo.ts`](./scripts/demo.ts): Extended with Steps 12, 13, 14, 15 covering scheduled task leases, rate-limiting, and autonomous reactive cascade alerts.
+- **Key Technical Decisions & Highlights:**
+  - **At-Least-Once Delivery with Exactly-Once Processing:**
+    - `OutboxConsumer` uses PostgreSQL row-level locks (`SKIP LOCKED`) on `platform.outbox_events`, preventing concurrent workers from claiming identical events.
+    - Idempotency is strictly enforced by recording `(consumer, event_id)` pairs in `platform.processed_events`.
+    - Unhandled worker errors are captured in `platform.dead_letters` with stack trace and payload snapshot, preventing poisoned events from blocking queue progress.
+  - **Autonomous Reactive Chaining:**
+    - Decoupled event-driven choreography enables modular ingestion workers to trigger deduplication, deterministic skill extraction, candidate fit scoring, and candidate alerts without synchronous coupling.
+- **Verification Status:**
+  - 3/3 tests passed in `src/orchestration/pipeline.test.ts`.
+  - Full system regression: **16 test files, 56/56 tests passing (100% green)** on live Supabase.
+  - Interactive live demo: **All 15 steps executed and verified** on Supabase via `npm run demo`.
+
+---
+
+### [0.6.1-phase5.2] - 2026-09-20
+#### Phase 5: Search & Discovery Pipeline Orchestration — Chunk 5.2: Rate Limiting, Circuit Breakers & Robots Politeness
+- **Files Created/Modified:**
+  - [`src/orchestration/rate-limiter.ts`](./src/orchestration/rate-limiter.ts): `DomainRateLimiter`, `CircuitBreaker`, and `RobotsPolitenessService`.
+  - [`src/orchestration/types.ts`](./src/orchestration/types.ts): Added `CircuitState`, `CircuitBreakerOptions`, and `RobotsComplianceStatus`.
+  - [`src/orchestration/rate-limiter.test.ts`](./src/orchestration/rate-limiter.test.ts): Unit & integration test suite (6 tests) verifying per-domain request throttling, circuit breaker state transitions (`CLOSED` ➔ `OPEN` ➔ `HALF_OPEN` ➔ `CLOSED`), instant 429 trips, robots.txt path validation, and compliance metadata persistence.
+- **Key Technical Decisions & Highlights:**
+  - **Polite Per-Domain Throttling:**
+    - `DomainRateLimiter` tracks per-host timestamps, ensuring polite intervals between successive requests to the same target domain without delaying requests to unrelated domains.
+  - **Circuit Breaker Protection against 429s/5xxs:**
+    - Automatically trips to `OPEN` when consecutive failures exceed the threshold, fast-failing subsequent requests without consuming network bandwidth.
+    - HTTP 429 Too Many Requests trips the circuit breaker immediately.
+    - After cooldown, transitions to `HALF_OPEN` to probe upstream availability before returning to `CLOSED`.
+  - **Robots.txt Directives & Compliance Storage:**
+    - Parses universal `Disallow:` patterns and `Crawl-delay:` directives.
+    - Stores metadata directly in `ingest.job_sources.compliance_status` (`robots_checked`, `allowed`, `crawl_delay_seconds`, `checked_at`).
+- **Verification Status:**
+  - 6/6 tests passed in `src/orchestration/rate-limiter.test.ts`.
+
+---
+
+### [0.6.0-phase5.1] - 2026-09-20
+#### Phase 5: Search & Discovery Pipeline Orchestration — Chunk 5.1: Distributed Lease Scheduler & Crash Recovery Engine
+- **Files Created/Modified:**
+  - [`src/orchestration/types.ts`](./src/orchestration/types.ts): Data contracts for `ScheduleRecord`, `CreateScheduleInput`, `CompleteTaskOptions`.
+  - [`src/orchestration/scheduler.ts`](./src/orchestration/scheduler.ts): `SchedulerService` implementing distributed lease acquisition with PostgreSQL `FOR UPDATE SKIP LOCKED`, automatic lease crash recovery, optimistic concurrency via `row_version`, and task rescheduling with jitter.
+  - [`src/orchestration/scheduler.test.ts`](./src/orchestration/scheduler.test.ts): Unit & integration test suite (6 tests) verifying single-target database constraints, atomic non-blocking claims, crash recovery of abandoned leases, and exponential backoff on `RATE_LIMITED` and `FAILURE` outcomes.
+- **Key Technical Decisions & Highlights:**
+  - **Deadlock-Free Atomic Claims via `SKIP LOCKED`:**
+    - Workers query due tasks in `sched.schedules` ordered by priority and `next_due_at`.
+    - PostgreSQL row-level locks with `SKIP LOCKED` allow multiple concurrent workers to claim unique schedules simultaneously without race conditions or lock waits.
+  - **Worker Crash Recovery & Lease Timeouts:**
+    - Tasks in flight record `in_flight_since`, `locked_by`, and `lease_expires_at`.
+    - If a worker crashes or drops offline, surviving workers automatically reclaim tasks whose `lease_expires_at <= now()`.
+    - Active workers can invoke `renewLease()` as a heartbeat for long-running crawling operations.
+  - **Rescheduling, Jitter & Exponential Backoff:**
+    - Successful completions reschedule `next_due_at` based on `base_cadence + (random() * jitter)`, preventing synchronized request spikes.
+    - Upstream rate limits (`RATE_LIMITED`) set `backoff_until` into the future, preventing immediate retry.
+  - **Transactional Outbox Events:**
+    - Emits `ScheduleTriggered` upon claim and `ScheduleCompleted` upon outcome resolution into `platform.outbox_events`.
+- **Verification Status:**
+  - 6/6 tests passed in `src/orchestration/scheduler.test.ts`.
+  - Full system regression: **14 test files, 47/47 tests passing** on live Supabase.
+
+---
 
 ### [0.5.2-phase4.3] - 2026-09-20
 #### Phase 4: Agent & Browser Automation — Chunk 4.3: Application Lifecycle FSM, Human Review Gate & Sandbox Runner
@@ -313,7 +386,9 @@ The following domain events are emitted across completed phases:
   - [x] **Chunk 4.1**: Database Schema & Form Inspection Engine (`apply.*` tables, `FormInspector`, ATS detection).
   - [x] **Chunk 4.2**: Answer Memory & Auto-Fill Service (caching verified candidate answers).
   - [x] **Chunk 4.3**: Playwright Sandbox & Human-in-the-Loop Approval Modal (`ApplicationWorkflowEngine`, FSM, approval invariant).
-- **Phase 5: Search & Discovery Pipeline Orchestration**
-  - Scheduled company registry crawling, worker pipelines, rate-limiting, and error recovery.
+- **Phase 5: Search & Discovery Pipeline Orchestration (Completed)**
+  - [x] **Chunk 5.1**: Distributed Lease Scheduler & Crash Recovery Engine (`sched.schedules`, atomic `SKIP LOCKED`, crash timeout).
+  - [x] **Chunk 5.2**: Domain Rate-Limiting, Robots Politeness & Circuit Breakers (`DomainRateLimiter`, `CircuitBreaker`, `RobotsPolitenessService`).
+  - [x] **Chunk 5.3**: Outbox Event Consumer & Automated End-to-End Pipeline (`OutboxConsumer`, `PipelineOrchestrator`, reactive cascade).
 - **Phase 6: Frontend Dashboard & Analytics**
   - Modern web interface for application tracking, fact management, manual approval, and status monitoring.

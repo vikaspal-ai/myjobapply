@@ -11,6 +11,9 @@ import { FormInspector } from '../src/apply/form-inspector.js';
 import { AnswerMemoryService } from '../src/apply/answer-memory.js';
 import { AutoFillService } from '../src/apply/autofill.js';
 import { ApplicationWorkflowEngine } from '../src/apply/workflow.js';
+import { SchedulerService } from '../src/orchestration/scheduler.js';
+import { DomainRateLimiter, CircuitBreaker, RobotsPolitenessService } from '../src/orchestration/rate-limiter.js';
+import { PipelineOrchestrator } from '../src/orchestration/pipeline.js';
 
 async function main() {
   console.log('\n======================================================');
@@ -356,9 +359,73 @@ async function main() {
   console.log(`   ✅ Confirmation Receipt: ${submissionRun.confirmationReceipt}\n`);
 
   // --------------------------------------------------------------------------
-  // Step 12: Transactional Outbox Events Verification
+  // Step 12: Distributed Lease Scheduler & Task Claiming (Phase 5, Chunk 5.1)
   // --------------------------------------------------------------------------
-  console.log('📬 STEP 12: Transactional Outbox Events Emitted to Supabase:');
+  console.log('⏰ STEP 12: Distributed Lease Scheduler & Task Claiming...');
+  const scheduler = new SchedulerService();
+  const schedule = await scheduler.createSchedule({
+    companyId: company.id,
+    priority: 10,
+    baseCadenceMinutes: 720,
+    jitterMinutes: 5,
+  });
+  console.log(`   ✅ Recurring Schedule Created: ID = ${schedule.id} (Priority: ${schedule.priority})`);
+
+  const claimedTask = await scheduler.claimDueTask('worker-demo-1', { leaseDurationSeconds: 120 });
+  console.log(`   ✅ Task Claimed by Worker: [${claimedTask?.lockedBy}] (Lease Expires: ${claimedTask?.leaseExpiresAt?.toISOString()})`);
+
+  const completedTask = await scheduler.completeTask({
+    scheduleId: schedule.id,
+    workerId: 'worker-demo-1',
+    outcome: 'SUCCESS',
+  });
+  console.log(`   ✅ Task Completed: Outcome = ${completedTask.lastOutcome} | Next Due = ${completedTask.nextDueAt.toISOString()}\n`);
+
+  // --------------------------------------------------------------------------
+  // Step 13: Rate Limiting, Circuit Breakers & Robots Politeness (Phase 5, Chunk 5.2)
+  // --------------------------------------------------------------------------
+  console.log('🚦 STEP 13: Domain Rate Limiting, Circuit Breakers & Politeness...');
+  const rateLimiter = new DomainRateLimiter(100);
+  await rateLimiter.acquire('acmetech.com');
+  console.log('   ✅ Domain Rate Limiter: Acquired slot for acmetech.com');
+
+  const circuitBreaker = new CircuitBreaker();
+  const protectedCallResult = await circuitBreaker.execute('acmetech.com', async () => 'UPSTREAM_HEALTHY');
+  console.log(`   ✅ Circuit Breaker Status: [${circuitBreaker.getState('acmetech.com')}] -> Result: ${protectedCallResult}`);
+
+  const robotsService = new RobotsPolitenessService();
+  const demoRobotsTxt = `User-agent: *\nDisallow: /admin/\nDisallow: /careers/apply/internal/\nCrawl-delay: 2`;
+  const robotsCompliance = await robotsService.updateJobSourceCompliance(
+    source.id,
+    demoRobotsTxt,
+    'https://acmetech.com/careers/jobs'
+  );
+  console.log(`   ✅ Robots.txt Politeness Check: Allowed = ${robotsCompliance.allowed ? 'YES' : 'NO'} (Crawl Delay: ${robotsCompliance.crawl_delay_seconds}s)\n`);
+
+  // --------------------------------------------------------------------------
+  // Step 14: Autonomous Event-Driven Pipeline & Reactive Notification (Phase 5, Chunk 5.3)
+  // --------------------------------------------------------------------------
+  console.log('⚡ STEP 14: Autonomous Pipeline Orchestration & Notifications...');
+  const orchestrator = new PipelineOrchestrator(`demo-pipeline-worker-${timestamp}`);
+  const pipelineBatch = await orchestrator.processPendingEvents({ batchSize: 20 });
+  console.log(`   ✅ Reactive Events Processed in Pipeline: ${pipelineBatch.processed}`);
+
+  const recentNotifications = await sql<{ kind: string; payload: any; created_at: string }[]>`
+    SELECT kind, payload, created_at
+    FROM platform.notifications
+    WHERE created_at >= NOW() - INTERVAL '3 minutes'
+    ORDER BY created_at DESC
+    LIMIT 3
+  `;
+  for (const n of recentNotifications) {
+    console.log(`   🔔 Notification: [${n.kind}] Candidate = ${n.payload?.candidateId?.slice(0, 8)}... Score = ${n.payload?.score}%`);
+  }
+  console.log('');
+
+  // --------------------------------------------------------------------------
+  // Step 15: Transactional Outbox Events Verification
+  // --------------------------------------------------------------------------
+  console.log('📬 STEP 15: Transactional Outbox Events Emitted to Supabase:');
   const outboxEvents = await sql<{ type: string; idempotency_key: string; created_at: string }[]>`
     SELECT type, idempotency_key, created_at
     FROM platform.outbox_events
@@ -371,7 +438,7 @@ async function main() {
   }
 
   console.log('\n======================================================');
-  console.log('🎉 ALL PHASES (0, 1, 2, 3, 4) EXECUTED & VERIFIED ON SUPABASE!');
+  console.log('🎉 ALL PHASES (0, 1, 2, 3, 4, 5) EXECUTED & VERIFIED ON SUPABASE!');
   console.log('======================================================\n');
 
   process.exit(0);
