@@ -50,13 +50,18 @@ The following domain events are emitted across completed phases:
 | `ApplicationFailed` | `application-workflow` | `application_run:<run_id>:failed` | `applicationId`, `runId`, `candidateId`, `jobId` | `error`, `path` |
 | `ScheduleTriggered` | `scheduler-service` | `schedule:<schedule_id>:triggered:<row_version>` | `scheduleId`, `jobSourceId`, `companyId` | `workerId`, `leaseExpiresAt`, `rowVersion` |
 | `ScheduleCompleted` | `scheduler-service` | `schedule:<schedule_id>:completed:<row_version>` | `scheduleId`, `jobSourceId`, `companyId` | `workerId`, `outcome`, `nextDueAt`, `rowVersion` |
+| `PublicContactDiscovered` | `outreach-discovery` | `contact:<company_id>:<email>` | `companyId`, `contactId` | `email`, `role`, `sourceUrl` |
+| `OutreachDrafted` | `outreach-service` | `outreach:<message_id>:drafted` | `messageId`, `companyId`, `contactId`, `candidateId` | `subject`, `status: DRAFT` |
+| `OutreachApproved` | `outreach-service` | `outreach:<message_id>:approved:<timestamp>` | `messageId`, `companyId`, `contactId`, `candidateId` | `status: APPROVED`, `approvedBy` |
+| `OutreachSent` | `outreach-service` | `outreach:<message_id>:sent` | `messageId`, `companyId`, `contactId`, `candidateId` | `status: SENT`, `providerMessageId` |
+| `OutreachReplyReceived` | `outreach-service` | `outreach:thread:<thread_id>:reply:<timestamp>` | `threadId`, `companyId`, `contactId` | `isBounce`, `replyPreview` |
 
 ---
 
 ## 3. Database Schema Overview (Completed Migrations)
 
 ### Schemas Established:
-`platform`, `discovery`, `ingest`, `sched`, `profile`, `jobs`, `ai`, `audit`, `docs`, `apply`.
+`platform`, `discovery`, `ingest`, `sched`, `profile`, `jobs`, `ai`, `audit`, `docs`, `apply`, `outreach`.
 
 ### Tables Established:
 - **`platform.outbox_events`**: Transactional outbox table (`id`, `event_type`, `producer`, `idempotency_key`, `correlation_id`, `entity_refs`, `payload`, `status`, `created_at`, `published_at`).
@@ -79,10 +84,52 @@ The following domain events are emitted across completed phases:
 - **`apply.applications`**: Job applications container (`id`, `candidate_id`, `job_id`, `resume_version_id`, `cover_letter_version_id`, `status`, `notes`) with `uq_apply_candidate_job (candidate_id, job_id)`.
 - **`apply.candidate_answers`**: Verified answers to sensitive/standard questions (`id`, `candidate_id`, `question_pattern`, `answer_text`, `category`, `verified`).
 - **`apply.application_runs`**: Automation run execution attempts (`id`, `application_id`, `path` [PLAYWRIGHT/EXTENSION], `status`, `form_data`, `pause_reason`).
+- **`outreach.company_contacts`**: Publicly discoverable recruiters/contacts (`id`, `company_id`, `first_name`, `last_name`, `email`, `role`, `source_url`, `confidence`, `status`, `metadata`) with `uq_outreach_contact_email (company_id, email)`.
+- **`outreach.suppression_list`**: Global suppression and unsubscribes (`id`, `email`, `domain`, `reason`, `suppressed_at`).
+- **`outreach.messages`**: Outbound email drafts, approval records, and delivery status (`id`, `candidate_id`, `company_id`, `contact_id`, `job_id`, `status` [DRAFT/APPROVED/SENT/FAILED/CANCELLED], `subject`, `body_html`, `body_text`, `grounded_fact_ids`, `approved_by`, `approved_at`, `sent_at`, `provider_message_id`).
+- **`outreach.threads`**: Multi-turn conversation tracking (`id`, `company_id`, `contact_id`, `candidate_id`, `subject`, `status` [ACTIVE/REPLIED/BOUNCED/CLOSED], `last_message_at`, `reply_count`).
 
 ---
 
 ## 4. Phase-by-Phase Changelog & Implementation History
+
+### [0.8.0-phase7] - 2026-09-20
+#### Phase 7: Outreach Engine, System Hardening & Chaos Drills
+- **Files Created/Modified:**
+  - [`migrations/004_outreach_schema.sql`](./migrations/004_outreach_schema.sql): DDL establishing `outreach.company_contacts`, `outreach.suppression_list`, `outreach.messages`, and `outreach.threads`.
+  - [`src/outreach/types.ts`](./src/outreach/types.ts): TypeScript domain types and provider interfaces (`CompanyContact`, `OutreachMessage`, `OutreachThread`, `SuppressionRecord`, `EmailProvider`).
+  - [`src/outreach/contact-extractor.ts`](./src/outreach/contact-extractor.ts): `ContactExtractor` discovering public recruiter contacts from company career/contact HTML without third-party data broker enrichment.
+  - [`src/outreach/suppression.ts`](./src/outreach/suppression.ts): `SuppressionService` enforcing global email/domain suppression and mandatory 30-day company contact cooldown.
+  - [`src/outreach/email-service.ts`](./src/outreach/email-service.ts): `OutreachEmailService` and `SandboxEmailProvider`:
+    - Drafts cold outreach citing verified candidate facts from `profile.candidate_facts`.
+    - Enforces physical human approval gate before sending (`APPROVED` state invariant).
+    - Emits transactional outbox events (`OutreachDrafted`, `OutreachApproved`, `OutreachSent`, `OutreachReplyReceived`).
+    - Updates conversation thread status on reply or bounce.
+  - [`src/api/routes/outreach.ts`](./src/api/routes/outreach.ts): REST endpoints (`GET /api/outreach/contacts`, `GET /api/outreach/messages`, `POST /api/outreach/draft`, `POST /api/outreach/messages/:id/approve`, `POST /api/outreach/messages/:id/send`, `GET /api/outreach/threads`).
+  - [`src/api/server.ts`](./src/api/server.ts): Registered `/api/outreach` router.
+  - [`src/resilience/chaos.ts`](./src/resilience/chaos.ts): Automated chaos drill engine executing 3 failure drills:
+    - **Drill 1 (Worker Crash & Lease Recovery):** Simulates worker death mid-lease; proves secondary worker claims expired lease atomically without task loss or deadlocks.
+    - **Drill 2 (Poison Pill Isolation):** Emits poison-pill event; proves unhandled worker failure routes to `platform.dead_letters` with stack trace while unblocking subsequent valid events.
+    - **Drill 3 (Idempotency Bombardment):** Bombards engine with 10 concurrent identical draft requests; proves exactly 1 row is written to `apply.applications`.
+  - [`src/outreach/outreach.test.ts`](./src/outreach/outreach.test.ts): 4/4 integration tests verifying contact extraction, suppression/cadence, approval gate enforcement, and REST API.
+  - [`src/resilience/chaos.test.ts`](./src/resilience/chaos.test.ts): 3/3 tests verifying worker crash recovery, poison-pill dead-letter isolation, and high-concurrency idempotency bombardment.
+- **Key Technical Decisions & Highlights:**
+  - **Zero-Hallucination & Anti-Fabrication in Outreach:**
+    - Cold emails must cite verified candidate facts from `profile.candidate_facts(id)`.
+    - No email guessing or pattern extrapolation; only publicly declared recruiter contacts from career pages are ingested.
+  - **30-Day Company Cadence Guard:**
+    - Prevents spamming recruiters: any prior outreach message to the same company within 30 days is blocked by `SuppressionService`.
+  - **Physical Human Approval Gate:**
+    - The outbound email sender throws an explicit invariant error if status is not `APPROVED`. Unapproved HTTP send requests return HTTP 403 Forbidden.
+  - **Chaos Resilience Proven:**
+    - Automated drills verify worker crash recovery, poison-pill DLQ quarantine, and concurrent idempotency against live Supabase PostgreSQL.
+- **Verification Status:**
+  - 4/4 tests passed in `src/outreach/outreach.test.ts`.
+  - 3/3 tests passed in `src/resilience/chaos.test.ts`.
+  - Full system regression: **19 test files, 70/70 tests passing (100% green)** on live Supabase (`npm test`).
+  - TypeScript typecheck: `npm run typecheck` passed with 0 errors.
+
+---
 
 ### [0.7.0-phase6] - 2026-09-20
 #### Phase 6: Frontend Dashboard & Analytics — BFF REST API, Web Command Center & Human Approval Modal
@@ -425,3 +472,8 @@ The following domain events are emitted across completed phases:
   - [x] **Chunk 6.1**: Backend REST API & Controllers (`src/api/routes/*`, typed contracts, error handlers).
   - [x] **Chunk 6.2**: Human-in-the-Loop Review Queue & Approval Modal (Evidence audit, resume & letter preview, ATS review).
   - [x] **Chunk 6.3**: Single-Process Command Center & Quota Meter (Served via Fastify, 63/63 tests green).
+- **Phase 7: Outreach Engine, System Hardening & Chaos Drills (Completed)**
+  - [x] **Chunk 7.1**: Public Contact Discovery & Suppression Engine (`outreach.*` tables, `ContactExtractor`, 30-day company cadence).
+  - [x] **Chunk 7.2**: Grounded Cold Email Service & Human Approval Gate (citing candidate facts only, strictly blocking unapproved sending).
+  - [x] **Chunk 7.3**: Failure Engineering & Chaos Resilience Drills (Worker crash lease recovery, poison-pill DLQ quarantine, concurrent idempotency bombardment).
+

@@ -53,11 +53,12 @@ export class SchedulerService {
    */
   async claimDueTask(
     workerId: string,
-    options?: { leaseDurationSeconds?: number },
+    options?: { leaseDurationSeconds?: number; scheduleId?: string },
   ): Promise<ScheduleRecord | null> {
     if (!db) throw new Error('Database client not initialized');
 
     const leaseDurationSeconds = options?.leaseDurationSeconds ?? 300; // 5 minutes default
+    const targetScheduleId = options?.scheduleId ?? null;
 
     const rows = await db`
       WITH candidate AS (
@@ -72,6 +73,7 @@ export class SchedulerService {
             -- Case 2: Lease expired (worker crash recovery)
             (in_flight_since IS NOT NULL AND lease_expires_at <= now())
           )
+          ${targetScheduleId ? db`AND id = ${targetScheduleId}` : db``}
         ORDER BY priority ASC, next_due_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED

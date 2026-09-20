@@ -54,7 +54,10 @@ describe('Phase 5.1: Distributed Lease Scheduler & Worker Crash Recovery', () =>
     });
 
     // Worker 1 claims task
-    const claimed = await scheduler.claimDueTask('worker-alpha', { leaseDurationSeconds: 120 });
+    const claimed = await scheduler.claimDueTask('worker-alpha', {
+      leaseDurationSeconds: 120,
+      scheduleId: schedule.id,
+    });
     expect(claimed).not.toBeNull();
     expect(claimed?.id).toBe(schedule.id);
     expect(claimed?.lockedBy).toBe('worker-alpha');
@@ -95,7 +98,10 @@ describe('Phase 5.1: Distributed Lease Scheduler & Worker Crash Recovery', () =>
     });
 
     // Worker 1 claims task
-    await scheduler.claimDueTask('worker-crashed', { leaseDurationSeconds: 60 });
+    await scheduler.claimDueTask('worker-crashed', {
+      leaseDurationSeconds: 60,
+      scheduleId: schedule.id,
+    });
 
     // Simulate worker-crashed dying by advancing lease_expires_at into the past
     await db`
@@ -105,7 +111,10 @@ describe('Phase 5.1: Distributed Lease Scheduler & Worker Crash Recovery', () =>
     `;
 
     // Worker 2 should now safely recover and claim the abandoned task
-    const recoveredTask = await scheduler.claimDueTask('worker-survivor', { leaseDurationSeconds: 120 });
+    const recoveredTask = await scheduler.claimDueTask('worker-survivor', {
+      leaseDurationSeconds: 120,
+      scheduleId: schedule.id,
+    });
     expect(recoveredTask).not.toBeNull();
     expect(recoveredTask?.id).toBe(schedule.id);
     expect(recoveredTask?.lockedBy).toBe('worker-survivor');
@@ -127,7 +136,9 @@ describe('Phase 5.1: Distributed Lease Scheduler & Worker Crash Recovery', () =>
       nextDueAt: new Date(Date.now() - 5000),
     });
 
-    const claimed = await scheduler.claimDueTask('worker-finisher');
+    const claimed = await scheduler.claimDueTask('worker-finisher', {
+      scheduleId: schedule.id,
+    });
     expect(claimed?.id).toBe(schedule.id);
 
     const completed = await scheduler.completeTask({
@@ -162,7 +173,9 @@ describe('Phase 5.1: Distributed Lease Scheduler & Worker Crash Recovery', () =>
       nextDueAt: new Date(Date.now() - 5000),
     });
 
-    await scheduler.claimDueTask('worker-throttled');
+    await scheduler.claimDueTask('worker-throttled', {
+      scheduleId: schedule.id,
+    });
 
     const backedOff = await scheduler.completeTask({
       scheduleId: schedule.id,
@@ -189,7 +202,10 @@ describe('Phase 5.1: Distributed Lease Scheduler & Worker Crash Recovery', () =>
       nextDueAt: new Date(Date.now() - 5000),
     });
 
-    const claimed = await scheduler.claimDueTask('worker-heartbeat', { leaseDurationSeconds: 60 });
+    const claimed = await scheduler.claimDueTask('worker-heartbeat', {
+      leaseDurationSeconds: 60,
+      scheduleId: schedule.id,
+    });
     expect(claimed).not.toBeNull();
 
     const renewed = await scheduler.renewLease(schedule.id, 'worker-heartbeat', 300);

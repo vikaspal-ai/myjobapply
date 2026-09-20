@@ -11,6 +11,7 @@ import { applicationRoutes } from './routes/applications.js';
 import { documentRoutes } from './routes/documents.js';
 import { pipelineRoutes } from './routes/pipeline.js';
 import { analyticsRoutes } from './routes/analytics.js';
+import { outreachRoutes } from './routes/outreach.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +41,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(documentRoutes);
   await app.register(pipelineRoutes);
   await app.register(analyticsRoutes);
+  await app.register(outreachRoutes);
 
   // Serve static Dashboard UI
   const publicDir = path.resolve(__dirname, '../dashboard/public');

@@ -129,7 +129,7 @@ export class OutboxConsumer {
         }
       }
 
-      // 4. Mark processed & published
+      // 4. Mark processed & published (or quarantined on unrecoverable failure)
       if (success) {
         await db`
           INSERT INTO platform.processed_events (
@@ -146,6 +146,21 @@ export class OutboxConsumer {
         `;
 
         processed++;
+      } else {
+        // Poison pill quarantine: Acknowledge event so outbox queue progresses to subsequent valid events
+        await db`
+          INSERT INTO platform.processed_events (
+            consumer, event_id, processed_at
+          ) VALUES (
+            ${this.consumerName}, ${event.id}, now()
+          ) ON CONFLICT (consumer, event_id) DO NOTHING
+        `;
+
+        await db`
+          UPDATE platform.outbox_events
+          SET published_at = now()
+          WHERE id = ${event.id}
+        `;
       }
     }
 
