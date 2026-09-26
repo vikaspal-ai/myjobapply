@@ -12,6 +12,7 @@
     "demo": "tsx scripts/demo.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "db:clean-test": "tsx -e \"import { sql } from './src/db/index.js'; await sql\\`DELETE FROM profile.candidate_profiles WHERE email NOT LIKE '%@demo.jobsapply'\\`; console.log('Cleaned test candidates'); await sql.end();\"",
+    "dev": "tsx watch src/api/server.ts",
     "server": "tsx src/api/server.ts"
   },
   "keywords": [
