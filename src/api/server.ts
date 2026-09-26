@@ -1,10 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
-import fastifyStatic from '@fastify/static';
 import fastifyMultipart from '@fastify/multipart';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
 
 import { candidateRoutes } from './routes/candidates.js';
 import { jobRoutes } from './routes/jobs.js';
@@ -14,9 +10,6 @@ import { pipelineRoutes } from './routes/pipeline.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { outreachRoutes } from './routes/outreach.js';
 import { authRoutes } from './routes/auth.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -51,26 +44,24 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(analyticsRoutes);
   await app.register(outreachRoutes);
 
-  // Serve static UI: Prefer modern compiled React build, fallback to dashboard public dir
-  const reactDistDir = path.resolve(__dirname, '../../dist/client');
-  const fallbackDir = path.resolve(__dirname, '../dashboard/public');
-  const staticDir = fs.existsSync(reactDistDir) ? reactDistDir : fallbackDir;
+  // Decoupled Pure REST API Root
+  app.get('/', async () => ({
+    service: 'myjobapply-api',
+    status: 'ok',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      candidates: '/api/candidates',
+      jobs: '/api/jobs',
+      applications: '/api/applications',
+      analytics: '/api/analytics/funnel',
+    },
+  }));
 
-  await app.register(fastifyStatic, {
-    root: staticDir,
-    prefix: '/',
-  });
-
-  // Fallback route for SPA navigation
-  app.setNotFoundHandler(async (req, reply) => {
-    if (req.url.startsWith('/api')) {
-      return reply.code(404).send({ success: false, error: 'Endpoint not found' });
-    }
-    const indexPath = path.join(staticDir, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      return reply.sendFile('index.html');
-    }
-    return reply.code(404).send({ success: false, error: 'Page not found' });
+  // Clean JSON 404 handler for all unmatched routes
+  app.setNotFoundHandler(async (_req, reply) => {
+    return reply.code(404).send({ success: false, error: 'Endpoint not found' });
   });
 
   return app;

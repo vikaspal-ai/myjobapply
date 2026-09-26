@@ -4,15 +4,19 @@
   "description": "Job Hunt Platform - Single-user $0 hybrid job discovery, matching, and application automation",
   "type": "module",
   "main": "dist/index.js",
+  "workspaces": [
+    "frontend"
+  ],
   "scripts": {
-    "build": "tsc && vite build",
-    "build:client": "vite build",
+    "build": "npm run build:server && npm run build:frontend",
+    "build:server": "tsc",
+    "build:frontend": "npm run build --prefix frontend",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:frontend\"",
     "dev:server": "tsx watch src/api/server.ts",
-    "dev:client": "vite",
-    "dev": "concurrently -n \"API,CLIENT\" -c \"blue,green\" \"tsx watch src/api/server.ts\" \"vite\"",
+    "dev:frontend": "npm run dev --prefix frontend",
     "demo": "tsx scripts/demo.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "db:clean-test": "tsx -e \"import { sql } from './src/db/index.js'; await sql\\`DELETE FROM profile.candidate_profiles WHERE email NOT LIKE '%@demo.jobsapply'\\`; console.log('Cleaned test candidates'); await sql.end();\"",
@@ -29,25 +33,18 @@
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/multipart": "^10.1.2",
-    "@fastify/static": "^10.1.4",
     "@supabase/server": "^1.0.1",
     "@supabase/supabase-js": "^2.49.1",
     "cheerio": "^1.2.0",
     "dotenv": "^16.4.7",
     "fastify": "^5.12.5",
-    "postgres": "^3.4.5",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^5.2.0",
-    "concurrently": "^10.0.5",
+    "concurrently": "^9.1.2",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
-    "vite": "^7.3.6",
     "vitest": "^3.0.8"
   }
 }

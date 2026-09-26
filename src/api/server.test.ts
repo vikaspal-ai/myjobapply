@@ -93,16 +93,17 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
     expect(body.service).toBe('myjobapply-bff');
   });
 
-  it('serves dashboard HTML on GET /', async () => {
+  it('serves API metadata on GET /', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/',
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.headers['content-type']).toContain('text/html');
-    expect(res.payload).toContain('Job Hunt Platform');
-    expect(res.payload).toContain('Human Review Queue');
+    const body = JSON.parse(res.payload);
+    expect(body.service).toBe('myjobapply-api');
+    expect(body.status).toBe('ok');
+    expect(body.endpoints.health).toBe('/api/health');
   });
 
   it('Candidate & Facts REST API: lists candidates, creates fact, and toggles verification', async () => {

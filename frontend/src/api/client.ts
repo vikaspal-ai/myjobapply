@@ -1,6 +1,7 @@
 // Typed API client for Jobsapply React Client
 
 const STORAGE_KEY_TOKEN = 'myjobapply_token';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 export async function api<T = any>(endpoint: string, options: RequestInit = {}): Promise<{ success: boolean; data: T; error?: string }> {
   const token = localStorage.getItem(STORAGE_KEY_TOKEN);
@@ -14,7 +15,8 @@ export async function api<T = any>(endpoint: string, options: RequestInit = {}):
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(endpoint, {
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
     ...options,
     headers,
   });

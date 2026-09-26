@@ -166,7 +166,7 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
 
               <div className="job-card-meta">
                 <span>📍 {job.locationDisplay}</span>
-                <span>📋 ATS: {job.atsType.toUpperCase()}</span>
+                <span>📋 ATS: {(job.atsType || 'generic').toUpperCase()}</span>
                 {job.salary && <span>💰 {job.salary}</span>}
               </div>
 
