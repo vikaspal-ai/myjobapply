@@ -1,5 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { sql } from '../../db/index.js';
+import { searchGoogleJobs } from '../../ingest/aggregators/serpapi.js';
+import { searchRapidJobs } from '../../ingest/aggregators/rapidapi.js';
+import { DeduplicationEngine } from '../../jobs/dedup.js';
+import { RequirementsService } from '../../jobs/requirements.js';
+import { MatchingService } from '../../jobs/matching.js';
 
 const db = sql!;
 
@@ -251,6 +256,138 @@ export async function jobRoutes(app: FastifyInstance) {
         verdict: m.verdict,
         createdAt: m.created_at,
       })),
+    });
+  });
+
+  // POST /api/jobs/sync-external - Search external aggregators (SerpApi Google Jobs or RapidAPI JSearch)
+  app.post<{
+    Body: {
+      provider?: 'serpapi' | 'rapidapi' | 'all';
+      query: string;
+      location?: string;
+      limit?: number;
+      candidateId?: string;
+    };
+  }>('/api/jobs/sync-external', async (req, reply) => {
+    const { provider = 'all', query, location = 'India', limit = 10, candidateId } = req.body || {};
+
+    if (!query) {
+      return reply.code(400).send({ success: false, error: 'query is required (e.g. "React Developer")' });
+    }
+
+    const dedup = new DeduplicationEngine();
+    const reqService = new RequirementsService();
+    const matchService = new MatchingService();
+
+    const results: any[] = [];
+    const externalJobs: Array<{
+      title: string;
+      company_name: string;
+      location: string;
+      description: string;
+      apply_url: string;
+      salary?: string;
+      workplaceType: 'remote' | 'hybrid' | 'onsite';
+      source: string;
+    }> = [];
+
+    // 1. SerpApi Google Jobs
+    if (provider === 'serpapi' || provider === 'all') {
+      const gRes = await searchGoogleJobs({ query, location, limit });
+      if (gRes.success && gRes.jobs.length > 0) {
+        externalJobs.push(...gRes.jobs.map(j => ({ ...j, source: 'google_jobs_serpapi' })));
+      }
+    }
+
+    // 2. RapidAPI JSearch
+    if (provider === 'rapidapi' || provider === 'all') {
+      const rRes = await searchRapidJobs({ query, location, limit });
+      if (rRes.success && rRes.jobs.length > 0) {
+        externalJobs.push(...rRes.jobs.map(j => ({ ...j, source: 'jsearch_rapidapi' })));
+      }
+    }
+
+    if (externalJobs.length === 0) {
+      const missingKeys: string[] = [];
+      if (!process.env.SERPAPI_API_KEY) missingKeys.push('SERPAPI_API_KEY');
+      if (!process.env.RAPIDAPI_KEY) missingKeys.push('RAPIDAPI_KEY');
+      return reply.send({
+        success: false,
+        message: 'No external jobs fetched. Please verify API keys in .env: ' + (missingKeys.join(', ') || 'No results for search query'),
+        data: [],
+      });
+    }
+
+    // 3. Process each job into canonical storage
+    let insertedCount = 0;
+    for (const item of externalJobs) {
+      try {
+        let [comp] = await db`SELECT id FROM discovery.companies WHERE name ILIKE ${item.company_name} LIMIT 1`;
+        if (!comp) {
+          [comp] = await db`
+            INSERT INTO discovery.companies (name)
+            VALUES (${item.company_name})
+            RETURNING id
+          `;
+        }
+
+        const externalId = `ext-${item.source}-${comp.id}-${item.title.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        const rawPosting = {
+          sourceId: undefined,
+          companyId: comp.id,
+          externalId,
+          sourceUrl: item.apply_url,
+          title: item.title,
+          description: item.description,
+          applyUrl: item.apply_url,
+          location: {
+            city: location,
+            country: 'India',
+            workplaceType: item.workplaceType,
+          },
+          payload: {
+            company: item.company_name,
+            salary: item.salary,
+            source: item.source,
+          },
+        };
+
+        const canonical = await dedup.processJob(rawPosting);
+
+        await db`
+          UPDATE jobs.jobs
+          SET is_synthetic = false,
+              status = 'ACTIVE',
+              salary = ${item.salary || 'Competitive'},
+              apply_url = ${item.apply_url},
+              source_attribution = ${db.json({ source: item.source, verified: true })},
+              location = ${db.json({
+                city: location,
+                country: 'India',
+                workplaceType: item.workplaceType,
+              })}
+          WHERE id = ${canonical.canonicalJobId}
+        `;
+
+        await reqService.processJobRequirements(canonical.canonicalJobId, item.description || item.title);
+
+        if (candidateId) {
+          await matchService.matchJob(canonical.canonicalJobId, candidateId);
+        }
+
+        insertedCount++;
+        results.push({ id: canonical.canonicalJobId, title: item.title, company: item.company_name });
+      } catch (err: any) {
+        // continue with next item
+      }
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        syncedCount: insertedCount,
+        jobs: results,
+      },
     });
   });
 }

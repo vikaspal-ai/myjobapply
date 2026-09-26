@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { sql } from '../../db/index.js';
 import { supabase } from '../../db/index.js';
+import { parseResume } from '../../docs/resume-parser.js';
 
 const db = sql!;
 
@@ -377,47 +378,11 @@ export async function candidateRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: 'resumeText must be at least 10 characters' });
     }
 
-    // 1. Skill Extraction dictionary
-    const skillDictionary = [
-      'react', 'node.js', 'nodejs', 'typescript', 'javascript', 'python', 'postgresql', 'postgres',
-      'mongodb', 'docker', 'kubernetes', 'aws', 'fastify', 'express', 'next.js', 'nextjs',
-      'java', 'spring boot', 'golang', 'go', 'redis', 'kafka', 'graphql', 'rest api', 'microservices',
-      'html5', 'css3', 'tailwind', 'git', 'ci/cd', 'playwright', 'vitest', 'jest', 'sql'
-    ];
+    const parsed = parseResume(resumeText);
 
-    const detectedSkills: string[] = [];
-    for (const skill of skillDictionary) {
-      const regex = new RegExp(`\\b${skill.replace('.', '\\.')}\\b`, 'i');
-      if (regex.test(resumeText)) {
-        const formatted = skill === 'nodejs' ? 'Node.js' :
-                          skill === 'nextjs' ? 'Next.js' :
-                          skill === 'postgres' ? 'PostgreSQL' :
-                          skill.charAt(0).toUpperCase() + skill.slice(1);
-        if (!detectedSkills.includes(formatted)) {
-          detectedSkills.push(formatted);
-        }
-      }
-    }
-
-    // 2. Experience Extraction
-    let experienceYears = 3;
-    const expMatch = resumeText.match(/(\d{1,2})\+?\s*(?:years?|yrs?)/i);
-    if (expMatch) {
-      experienceYears = parseInt(expMatch[1], 10);
-    }
-
-    // 3. Suggested Title
-    let suggestedTitle = 'Full Stack Engineer';
-    if (/frontend/i.test(resumeText)) suggestedTitle = 'Frontend Engineer';
-    else if (/backend/i.test(resumeText)) suggestedTitle = 'Backend Engineer';
-    else if (/devops|cloud/i.test(resumeText)) suggestedTitle = 'Cloud / DevOps Engineer';
-
-    // 4. Calculate ATS score
-    const atsScore = Math.min(96, Math.max(70, 75 + detectedSkills.length * 2 + Math.min(experienceYears, 10)));
-
-    // 5. If candidateId provided, persist detected skills as verified facts
+    // If candidateId provided, persist detected skills as verified facts
     if (candidateId) {
-      for (const skill of detectedSkills.slice(0, 10)) {
+      for (const skill of parsed.skills.slice(0, 15)) {
         try {
           await db`
             INSERT INTO profile.candidate_facts (candidate_id, category, statement, verified)
@@ -431,10 +396,11 @@ export async function candidateRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: {
-        skills: detectedSkills,
-        experienceYears,
-        suggestedTitle,
-        atsScore,
+        skills: parsed.skills,
+        experienceYears: parsed.experienceYears,
+        suggestedTitle: parsed.suggestedTitle,
+        atsScore: parsed.atsScore,
+        extractedSections: parsed.extractedSections,
       },
     });
   });

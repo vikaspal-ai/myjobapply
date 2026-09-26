@@ -120,14 +120,7 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
       }
     } catch (err: any) {
       console.error('Failed to parse resume:', err);
-      // Fallback local heuristic extraction
-      const keywords = ['React', 'Node.js', 'TypeScript', 'PostgreSQL', 'Fastify', 'Python', 'AWS', 'Docker', 'GraphQL', 'Tailwind'];
-      const found = keywords.filter((k) => resumeText.toLowerCase().includes(k.toLowerCase()));
-      if (found.length > 0) {
-        setSkills(found);
-      }
-      setAtsScore(92);
-      alert('Extracted skills from resume via local heuristic analyzer.');
+      alert('Failed to parse resume: ' + (err.message || 'Please check resume text format'));
     } finally {
       setIsExtracting(false);
     }
