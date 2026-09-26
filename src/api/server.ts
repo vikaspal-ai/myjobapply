@@ -51,14 +51,13 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(analyticsRoutes);
   await app.register(outreachRoutes);
 
-  // Serve static Dashboard UI
-  const publicDir = path.resolve(__dirname, '../dashboard/public');
-  if (!fs.existsSync(publicDir)) {
-    fs.mkdirSync(publicDir, { recursive: true });
-  }
+  // Serve static UI: Prefer modern compiled React build, fallback to dashboard public dir
+  const reactDistDir = path.resolve(__dirname, '../../dist/client');
+  const fallbackDir = path.resolve(__dirname, '../dashboard/public');
+  const staticDir = fs.existsSync(reactDistDir) ? reactDistDir : fallbackDir;
 
   await app.register(fastifyStatic, {
-    root: publicDir,
+    root: staticDir,
     prefix: '/',
   });
 
@@ -67,7 +66,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     if (req.url.startsWith('/api')) {
       return reply.code(404).send({ success: false, error: 'Endpoint not found' });
     }
-    const indexPath = path.join(publicDir, 'index.html');
+    const indexPath = path.join(staticDir, 'index.html');
     if (fs.existsSync(indexPath)) {
       return reply.sendFile('index.html');
     }
