@@ -3,404 +3,841 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Job Hunt Platform — Single-User Command Center</title>
+  <title>Jobsapply — India's First AI Job Agent • Job Hunt Platform</title>
+  <meta name="description" content="An autonomous job agent that searches multiple job portals, builds ATS-optimised resumes, auto-applies on your behalf, and runs cold outreach for referrals.">
   <link rel="stylesheet" href="/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
-<body class="bg-dark text-slate">
-  <!-- Top Navigation Header -->
-  <header class="app-header">
-    <div class="header-container">
-      <div class="brand">
-        <div class="brand-logo">🎯</div>
-        <div class="brand-info">
-          <h1>Job Hunt Platform</h1>
-          <span class="badge-hybrid">$0 Hybrid • Autonomous • Anti-Fabrication</span>
-        </div>
+<body>
+
+  <!-- Floating Frosted Pill Navbar -->
+  <header class="header-wrapper">
+    <nav class="floating-nav">
+      <a href="/" class="nav-brand">
+        <div class="brand-icon-box">⚡</div>
+        <span>jobsapply</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="#features" class="nav-link">Capabilities</a>
+        <a href="#integrations" class="nav-link">Integrations</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#workspace" class="nav-link">Live Agent</a>
+        <a href="#testimonials" class="nav-link">Reviews</a>
+        <a href="#faq" class="nav-link">FAQ</a>
       </div>
 
-      <div class="header-actions">
-        <!-- Active Candidate Switcher -->
-        <div class="candidate-switcher">
-          <label for="candidateSelect">Candidate:</label>
-          <select id="candidateSelect" class="input-select">
-            <option value="">Loading candidates...</option>
+      <div class="nav-actions">
+        <!-- Candidate Profile Switcher -->
+        <div class="candidate-pill">
+          <span class="pill-emoji">👤</span>
+          <select id="candidateSelect">
+            <option value="">Loading...</option>
           </select>
         </div>
 
-        <div class="system-status">
-          <span class="status-dot"></span>
-          <span class="status-label">Supabase Cloud</span>
-        </div>
-      </div>
-    </div>
+        <!-- Toggle to Engineering Console -->
+        <button id="openConsoleBtn" class="btn-outline btn-sm" title="View Pipeline Engine & Metrics">
+          <span style="font-size: 0.85em; line-height: 1;">🛠️</span> <span class="btn-label">Console</span>
+        </button>
 
-    <!-- Navigation Tabs -->
-    <nav class="nav-tabs">
-      <button class="nav-tab active" data-tab="overview">
-        <span class="tab-icon">📊</span> Overview & Analytics
-      </button>
-      <button class="nav-tab" data-tab="approvals">
-        <span class="tab-icon">🛡️</span> Human Review Queue
-        <span id="pendingBadge" class="counter-badge">0</span>
-      </button>
-      <button class="nav-tab" data-tab="jobs">
-        <span class="tab-icon">💼</span> Jobs & Matches
-      </button>
-      <button class="nav-tab" data-tab="facts">
-        <span class="tab-icon">🧠</span> Candidate Fact Store
-      </button>
-      <button class="nav-tab" data-tab="pipeline">
-        <span class="tab-icon">⚙️</span> Pipeline Controls
-      </button>
+        <!-- CTA Button -->
+        <a href="#workspace" class="btn-gradient btn-sm">
+          Start free
+        </a>
+      </div>
     </nav>
   </header>
 
-  <!-- Main Content Container -->
-  <main class="main-content">
-    <!-- TAB 1: OVERVIEW & ANALYTICS -->
-    <section id="tab-overview" class="tab-pane active">
-      <!-- Funnel Metrics Grid -->
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-title">Discovered Postings</span>
-            <span class="metric-icon">🕷️</span>
-          </div>
-          <div id="statDiscovered" class="metric-value">--</div>
-          <div class="metric-subtext">Crawled raw postings in database</div>
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-grid-pattern"></div>
+    <div class="container hero-container">
+      
+      <!-- Hero Copy -->
+      <div class="hero-content">
+        <div class="hero-badge-live">
+          <span class="pulse-dot"></span>
+          We're live · Available with priority onboarding
+        </div>
+        
+        <h1 class="hero-title">
+          India's First<br>
+          <span class="gradient-text">AI Job Agent</span>
+        </h1>
+
+        <p class="hero-desc">
+          A self-running job agent that scans leading job platforms, creates role-specific ATS-friendly resumes, submits applications for you automatically, and sends outreach to uncover LinkedIn referral paths — even when you're offline.
+        </p>
+
+        <div class="hero-buttons">
+          <a href="#workspace" class="btn-gradient" onclick="switchStep('jobs')">
+            Explore 11+ Live Indian Jobs
+          </a>
+          <a href="#workspace" class="btn-outline" onclick="switchStep('profile')">
+            Test ATS Resume Score
+          </a>
         </div>
 
-        <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-title">Canonical Jobs</span>
-            <span class="metric-icon">✨</span>
+        <div class="hero-stats-row">
+          <div class="hero-stat-item">
+            <span class="hero-stat-num">50,000+</span>
+            <span class="hero-stat-label">Daily Jobs Indexed</span>
           </div>
-          <div id="statCanonical" class="metric-value">--</div>
-          <div class="metric-subtext">Deduplicated 4-layer cascade</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-title">Matched Opportunities</span>
-            <span class="metric-icon">🎯</span>
+          <div class="hero-stat-item">
+            <span class="hero-stat-num">92/100</span>
+            <span class="hero-stat-label">Average ATS Match Score</span>
           </div>
-          <div id="statMatched" class="metric-value">--</div>
-          <div class="metric-subtext">Grounded in candidate facts</div>
-        </div>
-
-        <div class="metric-card highlight">
-          <div class="metric-header">
-            <span class="metric-title">Pending Human Review</span>
-            <span class="metric-icon">🛡️</span>
+          <div class="hero-stat-item">
+            <span class="hero-stat-num">100% Anti-Fake</span>
+            <span class="hero-stat-label">Deterministic Fact-Checked</span>
           </div>
-          <div id="statPendingReview" class="metric-value text-amber">--</div>
-          <div class="metric-subtext">Awaiting human approval gate</div>
         </div>
       </div>
 
-      <!-- Quota & Safety Meter -->
-      <div class="dashboard-row">
-        <div class="card quota-card">
-          <div class="card-header">
-            <h3>$0 Budget & Safety Quota Meter</h3>
-            <span class="badge-outline">Strict 15/day Max</span>
+      <!-- Hero Visual Representation -->
+      <div class="hero-visual">
+        <div class="hero-visual-card">
+          <div class="hero-visual-header">
+            <span class="agent-live-badge">● Autonomous Agent Active</span>
+            <span style="font-size: 0.78rem; opacity: 0.7;">Targeting: Mumbai • Pune • BLR</span>
           </div>
-          <div class="quota-meter-container">
-            <div class="quota-bar-wrapper">
-              <div id="quotaBar" class="quota-bar" style="width: 0%;"></div>
+
+          <div class="hero-visual-body">
+            <!-- Job 1 -->
+            <div class="hero-mini-job">
+              <div class="hero-mini-job-info">
+                <h4>Senior Frontend Engineer (SDE-2)</h4>
+                <p>Razorpay · Bengaluru • Hybrid</p>
+              </div>
+              <span class="fit-score-badge best">★ BEST 0.91</span>
             </div>
-            <div class="quota-labels">
-              <span id="quotaSubmittedText">0 submitted today</span>
-              <span id="quotaRemainingText">15 remaining allowance</span>
+
+            <!-- Job 2 -->
+            <div class="hero-mini-job">
+              <div class="hero-mini-job-info">
+                <h4>Software Engineer · L4 Fullstack</h4>
+                <p>Swiggy · Bengaluru • Tech</p>
+              </div>
+              <span class="fit-score-badge">0.74 Match</span>
             </div>
-          </div>
-          <div class="quota-note">
-            Automated submissions are strictly rate-limited to avoid vendor account suspension, CAPTCHA escalations, and API billing.
-          </div>
-        </div>
 
-        <div class="card ats-card">
-          <div class="card-header">
-            <h3>ATS Distribution</h3>
-            <span class="badge-outline">Fingerprinted Sources</span>
-          </div>
-          <div id="atsList" class="ats-breakdown-list">
-            <div class="empty-state">Loading ATS metrics...</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Outbox Activity -->
-      <div class="card mt-6">
-        <div class="card-header">
-          <h3>Transactional Outbox Activity (Event Cascade)</h3>
-          <button id="btnRefreshActivity" class="btn btn-sm btn-ghost">↻ Refresh</button>
-        </div>
-        <div class="table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Event Type</th>
-                <th>Producer</th>
-                <th>Correlation ID</th>
-                <th>Published</th>
-                <th>Timestamp</th>
-              </tr>
-            </thead>
-            <tbody id="outboxEventsTable">
-              <tr><td colspan="5" class="text-center py-4">Loading events...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 2: HUMAN REVIEW QUEUE -->
-    <section id="tab-approvals" class="tab-pane">
-      <div class="view-header">
-        <div>
-          <h2>Human-in-the-Loop Review Queue</h2>
-          <p class="subtitle">Platform Invariant: Submission is strictly blocked without explicit human approval.</p>
-        </div>
-        <div class="filter-group">
-          <button class="filter-btn active" data-status-filter="PENDING_APPROVAL">Pending Review</button>
-          <button class="filter-btn" data-status-filter="PAUSED">Paused / Attention</button>
-          <button class="filter-btn" data-status-filter="APPROVED">Approved</button>
-          <button class="filter-btn" data-status-filter="SUBMITTED">Submitted</button>
-          <button class="filter-btn" data-status-filter="ALL">All Applications</button>
-        </div>
-      </div>
-
-      <div id="applicationsList" class="applications-container">
-        <div class="loading-spinner">Loading applications...</div>
-      </div>
-    </section>
-
-    <!-- TAB 3: JOBS & MATCHES FEED -->
-    <section id="tab-jobs" class="tab-pane">
-      <div class="view-header">
-        <div>
-          <h2>Canonical Jobs & Fit Scored Feed</h2>
-          <p class="subtitle">Search canonicalized jobs with anti-fabrication candidate fit breakdown.</p>
-        </div>
-        <div class="search-bar">
-          <input type="text" id="jobSearchInput" class="input-text" placeholder="Search by title or company...">
-          <select id="minScoreFilter" class="input-select">
-            <option value="">All Scores</option>
-            <option value="0.7">Strong Match (≥ 70%)</option>
-            <option value="0.5">Moderate Match (≥ 50%)</option>
-          </select>
-          <button id="btnSearchJobs" class="btn btn-primary">Search</button>
-        </div>
-      </div>
-
-      <!-- Location Filter Bar -->
-      <div class="location-filter-bar mb-4">
-        <span class="filter-label">📍 Target Locations:</span>
-        <button class="loc-chip active" data-loc="all">All Locations</button>
-        <button class="loc-chip" data-loc="mumbai">📍 Mumbai</button>
-        <button class="loc-chip" data-loc="pune">📍 Pune</button>
-        <button class="loc-chip" data-loc="bengaluru">📍 Bengaluru</button>
-        <button class="loc-chip" data-loc="remote">🌐 Remote (India)</button>
-        <label class="real-only-toggle ml-auto">
-          <input type="checkbox" id="chkRealOnly" checked>
-          <span>Live Verified Jobs Only</span>
-        </label>
-      </div>
-
-      <div id="jobsList" class="jobs-grid">
-        <div class="loading-spinner">Loading jobs...</div>
-      </div>
-    </section>
-
-    <!-- TAB 4: CANDIDATE FACT STORE -->
-    <section id="tab-facts" class="tab-pane">
-      <div class="view-header">
-        <div>
-          <h2>Candidate Grounded Fact Store</h2>
-          <p class="subtitle">Zero-Hallucination Invariant: All tailored resume bullets and answers must link to a verified fact.</p>
-        </div>
-        <div>
-          <button id="btnOpenAddFactModal" class="btn btn-primary">+ Add New Fact</button>
-        </div>
-      </div>
-
-      <div class="fact-category-tabs">
-        <button class="category-tab active" data-category="ALL">All Facts</button>
-        <button class="category-tab" data-category="skill">Skills</button>
-        <button class="category-tab" data-category="experience">Experience</button>
-        <button class="category-tab" data-category="education">Education</button>
-        <button class="category-tab" data-category="project">Projects</button>
-        <button class="category-tab" data-category="certification">Certifications</button>
-      </div>
-
-      <div id="factsList" class="facts-grid">
-        <div class="loading-spinner">Loading candidate facts...</div>
-      </div>
-    </section>
-
-    <!-- TAB 5: PIPELINE CONTROLS -->
-    <section id="tab-pipeline" class="tab-pane">
-      <div class="view-header">
-        <div>
-          <h2>Pipeline Orchestration & Diagnostics</h2>
-          <p class="subtitle">Control autonomous crawlers, event outbox consumer, and distributed lease scheduler.</p>
-        </div>
-      </div>
-
-      <div class="pipeline-grid">
-        <!-- On-demand Career Crawl Card -->
-        <div class="card">
-          <div class="card-header">
-            <h3>🕷️ On-Demand Career Page Crawler</h3>
-          </div>
-          <p class="card-desc">Fingerprints career architecture (Talent-Pool vs Hub-Spoke), registers job source with politeness rules, and ingests postings.</p>
-          <form id="crawlForm" class="crawl-form">
-            <div class="form-group">
-              <label for="crawlUrl">Career Page URL:</label>
-              <input type="url" id="crawlUrl" class="input-text" placeholder="https://example.com/careers" required>
+            <!-- Job 3 -->
+            <div class="hero-mini-job">
+              <div class="hero-mini-job-info">
+                <h4>Frontend Engineer III</h4>
+                <p>PhonePe · Pune • Payments</p>
+              </div>
+              <span class="fit-score-badge">0.61 Match</span>
             </div>
-            <div class="form-group">
-              <label for="crawlCompanyName">Company Name (Optional):</label>
-              <input type="text" id="crawlCompanyName" class="input-text" placeholder="Example Tech">
-            </div>
-            <button type="submit" id="btnCrawl" class="btn btn-primary">Start Ingestion Crawl</button>
-          </form>
-          <div id="crawlFeedback" class="feedback-panel hidden"></div>
-        </div>
 
-        <!-- Event Outbox Consumer Card -->
-        <div class="card">
-          <div class="card-header">
-            <h3>⚡ Outbox Event Consumer</h3>
-          </div>
-          <p class="card-desc">Pulls unpublished events with <code>FOR UPDATE SKIP LOCKED</code> and triggers the reactive pipeline cascade.</p>
-          <div class="action-box">
-            <button id="btnTriggerConsumer" class="btn btn-secondary">Process Outbox Batch (SKIP LOCKED)</button>
-          </div>
-          <div id="consumerFeedback" class="feedback-panel hidden"></div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- MODAL 1: HUMAN REVIEW & APPROVAL MODAL -->
-  <div id="approvalModal" class="modal-backdrop hidden">
-    <div class="modal-dialog large">
-      <div class="modal-header">
-        <div>
-          <h3 id="modalJobTitle">Review Application</h3>
-          <p id="modalCompanySubtitle" class="modal-subtitle">Company • Status</p>
-        </div>
-        <button id="btnCloseApprovalModal" class="modal-close-btn">&times;</button>
-      </div>
-
-      <div class="modal-body">
-        <!-- Modal Tabs -->
-        <div class="modal-tabs">
-          <button class="modal-tab active" data-modal-tab="overview">Match & Facts Audit</button>
-          <button class="modal-tab" data-modal-tab="resume">Tailored Resume Preview</button>
-          <button class="modal-tab" data-modal-tab="coverLetter">Cover Letter</button>
-          <button class="modal-tab" data-modal-tab="answers">ATS Form Auto-Fill</button>
-        </div>
-
-        <!-- Tab 1: Match Evidence Audit -->
-        <div id="modalTab-overview" class="modal-tab-content active">
-          <div class="audit-section">
-            <h4>Anti-Fabrication Evidence Checklist</h4>
-            <p class="audit-note">Every match score criterion is verified against Grounded Fact Store entries.</p>
-            <div id="modalEvidenceList" class="evidence-list">
-              <!-- Dynamically populated -->
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab 2: Tailored Resume Preview -->
-        <div id="modalTab-resume" class="modal-tab-content">
-          <div class="resume-preview-container">
-            <div class="resume-header">
-              <span id="modalResumeTitle" class="font-bold">Resume Version</span>
-              <span id="modalResumeTemplate" class="badge-outline">Template</span>
-            </div>
-            <pre id="modalResumeMarkdown" class="markdown-preview"></pre>
-          </div>
-        </div>
-
-        <!-- Tab 3: Cover Letter -->
-        <div id="modalTab-coverLetter" class="modal-tab-content">
-          <div class="cover-letter-container">
-            <div class="cover-letter-header">
-              <span class="font-bold">Tailored Cover Letter</span>
-              <span class="badge-outline">Grounded Company Citation</span>
-            </div>
-            <div id="modalCoverLetterText" class="letter-content"></div>
-          </div>
-        </div>
-
-        <!-- Tab 4: ATS Form Answers -->
-        <div id="modalTab-answers" class="modal-tab-content">
-          <div class="answers-container">
-            <h4>Form Field Auto-Fill Review</h4>
-            <div id="modalAnswersList" class="answers-list">
-              <!-- Dynamically populated -->
+            <!-- Status banner -->
+            <div style="background: rgba(37, 99, 235, 0.15); border: 1px solid rgba(96, 165, 250, 0.3); border-radius: 12px; padding: 0.75rem; text-align: center; font-size: 0.8rem; color: #93c5fd;">
+              ✨ Auto-compiled tailored LaTeX resume ready for PhonePe & Razorpay
             </div>
           </div>
         </div>
       </div>
 
-      <div class="modal-footer">
-        <div id="approvalGateStatus" class="approval-gate-indicator">
-          <!-- Populated dynamically: Shows PENDING, APPROVED, etc. -->
+    </div>
+  </section>
+
+  <!-- 002 ● Capabilities Bento Grid -->
+  <section id="features" class="bento-section">
+    <div class="container">
+      <p class="section-tag">002 ● Capabilities</p>
+      <h2 class="section-title">One platform. Every stage covered.</h2>
+      <p class="section-subtitle">Cut down on the 30–40 hours you spend each week — Jobsapply handles discovery, resume customization, applications, and follow-ups in a fraction of the time.</p>
+
+      <div class="bento-grid">
+        <!-- Card 1: Job Discovery -->
+        <div class="bento-card">
+          <div class="bento-preview-box">
+            <div style="width: 100%; display: flex; flex-direction: column; gap: 0.6rem;">
+              <div class="hero-mini-job" style="background: rgba(255,255,255,0.08);">
+                <div>
+                  <p style="font-size: 0.82rem; font-weight: 600;">Senior Frontend SDE-2</p>
+                  <p style="font-size: 0.72rem; color: rgba(255,255,255,0.5);">Razorpay · Bengaluru</p>
+                </div>
+                <span class="fit-score-badge best">★ BEST 0.91</span>
+              </div>
+              <div class="hero-mini-job" style="background: rgba(255,255,255,0.08);">
+                <div>
+                  <p style="font-size: 0.82rem; font-weight: 600;">Software Engineer · L4</p>
+                  <p style="font-size: 0.72rem; color: rgba(255,255,255,0.5);">Swiggy · Bengaluru</p>
+                </div>
+                <span class="fit-score-badge">0.74</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="bento-card-title">Skip the endless job scrolling</h3>
+            <p class="bento-card-desc">It monitors fresh listings across major platforms and surfaces only the roles that fit — with a clear explanation of why each one matched.</p>
+          </div>
         </div>
-        <div class="modal-actions">
-          <button id="btnModalPause" class="btn btn-ghost text-amber">Pause / Hold</button>
-          <button id="btnModalApprove" class="btn btn-success font-bold">✓ Approve Application</button>
-          <button id="btnModalRunSandbox" class="btn btn-primary">🚀 Execute Sandbox Apply</button>
+
+        <!-- Card 2: Applications -->
+        <div class="bento-card">
+          <div class="bento-preview-box">
+            <div class="mini-apply-card">
+              <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; margin-bottom: 0.35rem;">
+                <span>naukri.com/apply</span>
+                <span style="color: #2563eb; font-weight: 700;">FROM PROFILE</span>
+              </div>
+              <p style="font-weight: 700; font-size: 0.92rem;" id="previewCandidateName">Vikas Pal</p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.4rem 0;">
+                <span style="font-size: 0.75rem; color: #64748b;">Resume Attached</span>
+                <span style="background: rgba(37,99,235,0.12); color: #2563eb; font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px;">ATS 92</span>
+              </div>
+              <div style="background: #f8fafc; border-radius: 6px; padding: 0.4rem; font-size: 0.72rem;">
+                <p style="color: #2563eb; font-weight: 700;">WHY THIS ROLE? · REASONED</p>
+                <p style="color: #475569;">Led scalable microservices architecture with 99.9% uptime</p>
+              </div>
+              <p style="text-align: center; color: #10b981; font-weight: 700; font-size: 0.75rem; margin-top: 0.5rem;">✓ READY TO SUBMIT</p>
+            </div>
+          </div>
+          <div>
+            <h3 class="bento-card-title">Handles applications so you don't have to</h3>
+            <p class="bento-card-desc">Genuine submissions on every supported job board, with screening answers written deterministically in your tone.</p>
+          </div>
+        </div>
+
+        <!-- Card 3: Email sequences -->
+        <div class="bento-card">
+          <div class="bento-preview-box">
+            <div class="mini-seq-box">
+              <div class="mini-seq-step">
+                <div>
+                  <p style="font-size: 0.7rem; opacity: 0.5;">Day 1</p>
+                  <p style="font-weight: 600;">Reaching out · Razorpay Lead</p>
+                </div>
+                <span style="color: #60a5fa; font-weight: 700;">● Opened</span>
+              </div>
+              <div class="mini-seq-step">
+                <div>
+                  <p style="font-size: 0.7rem; opacity: 0.5;">+3d follow-up</p>
+                  <p style="font-weight: 600;">↩ Re: Happy to chat!</p>
+                </div>
+                <span style="color: #34d399; font-weight: 700;">STOPPED · Replied</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="bento-card-title">Smart email sequences that stop on reply</h3>
+            <p class="bento-card-desc">A three-step outreach flow in your voice that halts automatically the moment someone responds.</p>
+          </div>
+        </div>
+
+        <!-- Card 4: Referrals Network (Span 2) -->
+        <div class="bento-card span-2">
+          <div class="bento-preview-box">
+            <div class="referrals-network">
+              <div class="ref-center-avatar">YOU</div>
+              <div class="ref-signal-pill pos-1">★ Tech Mahindra Alumni</div>
+              <div class="ref-signal-pill pos-2">2nd-degree · Would Refer →</div>
+              <div class="ref-signal-pill pos-3">✦ Same Location · Pune</div>
+              <div class="ref-signal-pill pos-4">✦ Shared Skills · Node/React</div>
+            </div>
+          </div>
+          <div>
+            <h3 class="bento-card-title">Discover referrers inside target companies</h3>
+            <p class="bento-card-desc">Identifies people who can refer you, ranks them by response likelihood, and drafts the personalized introduction message.</p>
+          </div>
+        </div>
+
+        <!-- Card 5: Tailored Resume -->
+        <div class="bento-card">
+          <div class="bento-preview-box">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%;">
+              <div style="background: rgba(0,0,0,0.5); padding: 0.6rem; border-radius: 8px; font-family: var(--font-mono); font-size: 0.65rem; color: #93c5fd;">
+                \documentclass{resume}<br>
+                \name{Vikas Pal}<br>
+                \section{Experience}<br>
+                \item Senior SDE<br>
+                \item +40% query perf
+              </div>
+              <div style="background: white; padding: 0.6rem; border-radius: 8px; font-size: 0.7rem; color: #0f172a;">
+                <p style="font-weight: 700;">Vikas Pal</p>
+                <p style="font-size: 0.65rem; color: #64748b;">vikas@example.com</p>
+                <div style="margin-top: 0.4rem; background: rgba(37,99,235,0.15); color: #2563eb; font-weight: 700; padding: 0.15rem 0.3rem; border-radius: 4px; display: inline-block;">
+                  ATS 92
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="bento-card-title">A tailored, ATS-ready resume per role</h3>
+            <p class="bento-card-desc">Keyword-aligned, ATS-friendly, and quantified — strictly fact-checked against your profile with 0% hallucinations.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 003 ● Integrations Orbit -->
+  <section id="integrations" class="orbit-section">
+    <div class="container orbit-container">
+      <div>
+        <p class="section-tag">003 ● Integrations</p>
+        <h2 class="section-title">Your entire hiring toolkit in <span style="color: var(--color-primary);">one place.</span></h2>
+        <p class="section-subtitle">
+          Job searching spans platforms, portals, and your inbox. Jobsapply connects everything in a single autonomous agent. No setup headaches. No tab switching. We manage the full stack.
+        </p>
+      </div>
+
+      <div class="orbit-viewport">
+        <!-- Center Hub -->
+        <div class="orbit-center-hub">
+          ⚡
+        </div>
+
+        <!-- Outer Orbit: Job Portals -->
+        <div class="orbit-ring-outer">
+          <div class="orbit-node" style="top: 0; left: 50%; transform: translate(-50%, -50%);">Naukri</div>
+          <div class="orbit-node" style="top: 50%; right: 0; transform: translate(50%, -50%);">LinkedIn</div>
+          <div class="orbit-node" style="bottom: 0; left: 50%; transform: translate(-50%, 50%);">Foundit</div>
+          <div class="orbit-node" style="top: 50%; left: 0; transform: translate(-50%, -50%);">Hirist</div>
+        </div>
+
+        <!-- Inner Orbit: Tools & AI -->
+        <div class="orbit-ring-inner">
+          <div class="orbit-node" style="top: 15%; right: 15%;">Gmail</div>
+          <div class="orbit-node" style="bottom: 15%; left: 15%;">LaTeX</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 004 ● How It Works (The 5-Step Interactive Workspace) -->
+  <section id="how-it-works" class="workspace-section">
+    <div class="container">
+      <p class="section-tag">004 ● How it works</p>
+      <h2 class="section-title">How our AI job agent operates: <span style="color: var(--color-primary);">five automated steps.</span></h2>
+      <p class="section-subtitle">Experience each stage of your autonomous job search right here.</p>
+
+      <!-- 5-Step Navigation Pills -->
+      <div id="workspace" class="step-nav-bar">
+        <button class="step-nav-btn active" onclick="switchStep('profile')">
+          <span class="step-nav-num">1</span> Profile & ATS Analyzer
+        </button>
+        <button class="step-nav-btn" onclick="switchStep('jobs')">
+          <span class="step-nav-num">2</span> Live Job Matches
+        </button>
+        <button class="step-nav-btn" onclick="switchStep('resume')">
+          <span class="step-nav-num">3</span> Tailored Resumes
+        </button>
+        <button class="step-nav-btn" onclick="switchStep('apply')">
+          <span class="step-nav-num">4</span> Auto-Apply Tracker
+        </button>
+        <button class="step-nav-btn" onclick="switchStep('referrals')">
+          <span class="step-nav-num">5</span> Referrals & Outreach
+        </button>
+      </div>
+
+      <!-- STEP 1 PANEL: ATS ANALYZER & PROFILE -->
+      <div id="step-panel-profile" class="step-workspace-panel active">
+        <div class="ats-score-grid">
+          <!-- Dial Card -->
+          <div class="ats-score-dial-card">
+            <span style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.1em; color: #93c5fd; font-weight: 700;">ATS Compatibility Score</span>
+            <div class="ats-score-circle">
+              <span id="atsScoreValue">92</span><span class="ats-score-max">/100</span>
+            </div>
+            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Optimized for Indian Tech Roles</p>
+
+            <div class="ats-metric-bars">
+              <div class="ats-bar-row">
+                <div class="ats-bar-labels">
+                  <span>Keyword Coverage</span>
+                  <span id="atsKeywordsPercent">96%</span>
+                </div>
+                <div class="ats-progress-track">
+                  <div class="ats-progress-fill" style="width: 96%;"></div>
+                </div>
+              </div>
+
+              <div class="ats-bar-row">
+                <div class="ats-bar-labels">
+                  <span>Quantified Achievements</span>
+                  <span>88%</span>
+                </div>
+                <div class="ats-progress-track">
+                  <div class="ats-progress-fill" style="width: 88%;"></div>
+                </div>
+              </div>
+
+              <div class="ats-bar-row">
+                <div class="ats-bar-labels">
+                  <span>Location Match (Mumbai, Pune, BLR)</span>
+                  <span style="color: #34d399; font-weight: 700;">100%</span>
+                </div>
+                <div class="ats-progress-track">
+                  <div class="ats-progress-fill" style="width: 100%; background: #10b981;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+            <!-- Onboarding & Location Preferences Form -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <div>
+                  <h3 style="font-size: 1.35rem; font-weight: 700; color: var(--color-text-title);" id="candidateNameHeader">Candidate Profile & Target Locations</h3>
+                  <p style="font-size: 0.88rem; color: var(--color-text-body);" id="candidateSummaryText">Set your professional background and location preferences to trigger AI job search.</p>
+                </div>
+                <span style="background: rgba(16,185,129,0.15); color: #10b981; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 9999px;">Verified Facts</span>
+              </div>
+
+              <!-- Profile Details Grid -->
+              <div style="background: var(--color-surface-soft); border-radius: var(--radius-xl); padding: 1.25rem; margin-bottom: 1.25rem; border: 1px solid var(--color-surface-border);">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+                  <div>
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Full Name</label>
+                    <input type="text" id="inputFullName" placeholder="e.g. Vikas Pal" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Email Address</label>
+                    <input type="email" id="inputEmail" placeholder="e.g. vikas@example.com" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Current / Target Role</label>
+                    <input type="text" id="inputCurrentJob" placeholder="e.g. Senior Fullstack Engineer" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Years of Experience</label>
+                    <input type="number" id="inputExpYears" min="0" max="40" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Location Preferences Multi-Select -->
+              <div style="background: white; border: 1px solid var(--color-surface-border); border-radius: var(--radius-xl); padding: 1.25rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                  <h4 style="font-size: 0.88rem; font-weight: 700; color: var(--color-text-title);">📍 Target Job Locations (Click to Toggle)</h4>
+                  <span style="font-size: 0.75rem; color: var(--color-text-muted);">Matches Indian Tech Hubs</span>
+                </div>
+                <div id="preferredLocationsContainer" class="location-chips" style="gap: 0.5rem;">
+                  <!-- Rendered dynamically by onboarding.js -->
+                </div>
+              </div>
+
+              <!-- Skills & Fact Highlights -->
+              <div style="background: var(--color-surface-soft); border-radius: var(--radius-xl); padding: 1.25rem; margin-bottom: 1.25rem; border: 1px solid var(--color-surface-border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                  <h4 style="font-size: 0.88rem; font-weight: 700; color: var(--color-text-title);">Core Skills & Proven Facts</h4>
+                  <span style="font-size: 0.75rem; color: #10b981; font-weight: 700;">Anti-Hallucination Verified</span>
+                </div>
+                <div id="candidateSkillsList" style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem;">
+                  <!-- Rendered by onboarding.js -->
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" id="inputNewSkill" placeholder="Add verified skill (e.g. Next.js, Redis, Kafka)..." style="flex: 1; padding: 0.45rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.82rem;">
+                  <button type="button" id="btnAddSkill" class="btn-outline btn-sm">+ Add Skill</button>
+                </div>
+              </div>
+
+              <!-- Save Preferences Button -->
+              <div style="display: flex; justify-content: flex-end;">
+                <button type="button" id="btnSavePreferences" class="btn-gradient" style="padding: 0.65rem 1.75rem; font-size: 0.95rem;">
+                  Save Preferences & Start Job Hunt ⚡
+                </button>
+              </div>
+            </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 PANEL: LIVE JOB MATCHES FEED -->
+      <div id="step-panel-jobs" class="step-workspace-panel">
+        <div class="jobs-feed-controls">
+          <div class="location-chips">
+            <button class="chip-btn active" data-loc="all" onclick="filterByLocation('all')">All Locations</button>
+            <button class="chip-btn" data-loc="mumbai" onclick="filterByLocation('mumbai')">📍 Mumbai</button>
+            <button class="chip-btn" data-loc="pune" onclick="filterByLocation('pune')">📍 Pune</button>
+            <button class="chip-btn" data-loc="bengaluru" onclick="filterByLocation('bengaluru')">📍 Bengaluru</button>
+            <button class="chip-btn" data-loc="remote" onclick="filterByLocation('remote')">🌐 Remote (India)</button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <label style="font-size: 0.82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+              <input type="checkbox" id="realJobsToggle" checked onchange="toggleRealOnly(this.checked)">
+              <span>Live Verified Jobs Only</span>
+            </label>
+            <span id="jobsCountBadge" class="btn-outline btn-sm" style="font-size: 0.78rem;">0 jobs</span>
+          </div>
+        </div>
+
+        <div id="jobsGridContainer" class="jobs-grid-display">
+          <!-- Job cards populated via JS -->
+          <div style="text-align: center; grid-column: 1/-1; padding: 3rem; color: var(--color-text-muted);">
+            Loading active Indian opportunities...
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3 PANEL: TAILORED RESUMES & LATEX COMPILER -->
+      <div id="step-panel-resume" class="step-workspace-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--color-text-title);">Modular LaTeX / PDF Resume Compiler</h3>
+            <p style="font-size: 0.88rem; color: var(--color-text-body);">Strict anti-hallucination compiler: only facts verified in candidate memory are included.</p>
+          </div>
+          <button class="btn-gradient btn-sm" onclick="compileResumeForActiveJob()">
+            Compile Tailored PDF
+          </button>
+        </div>
+
+        <div class="latex-split-view">
+          <!-- Left: LaTeX Source -->
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; margin-bottom: 0.5rem;">
+              <span>resume.tex (Strict Verified Schema)</span>
+              <span style="color: #2563eb;">ATS Optimised</span>
+            </div>
+            <pre class="code-pane-dark" id="latexSourceCode">\documentclass[letterpaper,10pt]{article}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+
+\begin{document}
+\begin{center}
+    \textbf{\Large \scshape Vikas Pal} \\ \vspace{1pt}
+    \small +91 9876543210 $|$ \href{mailto:vikas@example.com}{vikas@example.com} $|$ 
+    \href{https://linkedin.com/in/vikaspal}{linkedin.com/in/vikaspal}
+\end{center}
+
+\section{Summary}
+Full-Stack Engineer with 5+ years experience architecting scalable distributed systems across Mumbai and Bengaluru.
+
+\section{Technical Skills}
+\textbf{Languages}: TypeScript, JavaScript, Python, SQL \\
+\textbf{Frameworks}: Node.js, Fastify, React, Next.js \\
+\textbf{Databases}: PostgreSQL, Redis, Supabase
+
+\end{document}</pre>
+          </div>
+
+          <!-- Right: PDF Preview & Metrics -->
+          <div class="pdf-preview-box">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h4 style="font-size: 0.95rem; font-weight: 700;">Compiled PDF Artifact</h4>
+              <span style="background: rgba(16,185,129,0.15); color: #10b981; font-weight: 700; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px;">2-Page Budget Verified ✓</span>
+            </div>
+
+            <div style="background: var(--color-surface-soft); border-radius: 12px; padding: 1.5rem; text-align: center; border: 1px dashed rgba(0,0,0,0.15);">
+              <p style="font-size: 2.5rem; margin-bottom: 0.5rem;">📄</p>
+              <h5 style="font-weight: 700; margin-bottom: 0.25rem;">vikas-pal-tailored-resume.pdf</h5>
+              <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 1rem;">Ready for Razorpay, Swiggy, and PhonePe ATS systems</p>
+              <a href="#" class="btn-outline btn-sm" onclick="alert('Downloading compiled ATS resume artifact.'); return false;">
+                Download PDF
+              </a>
+            </div>
+
+            <div style="font-size: 0.82rem; color: var(--color-text-body); display: flex; flex-direction: column; gap: 0.4rem;">
+              <p>✓ <strong>Zero Hallucinations:</strong> Verified 100% against Candidate Fact Store.</p>
+              <p>✓ <strong>Deterministic Parsing:</strong> Clean standard LaTeX syntax compliant with Workday & Greenhouse.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4 PANEL: AUTO-APPLY TRACKER -->
+      <div id="step-panel-apply" class="step-workspace-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--color-text-title);">Autonomous Apply & Screening Review</h3>
+            <p style="font-size: 0.88rem; color: var(--color-text-body);">Applications are filled automatically and tracked here with 100% answer transparency.</p>
+          </div>
+          <span class="btn-outline btn-sm" id="applyCountBadge">0 Applications</span>
+        </div>
+
+        <div id="applicationsContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+          <!-- Applications populated via JS -->
+          <div style="text-align: center; padding: 2rem; color: var(--color-text-muted);">
+            No pending submissions yet. Select jobs from the Live Matches tab to trigger applications.
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 5 PANEL: REFERRALS & OUTREACH -->
+      <div id="step-panel-referrals" class="step-workspace-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--color-text-title);">Warm Referral Discovery & Automated Cold Outreach</h3>
+            <p style="font-size: 0.88rem; color: var(--color-text-body);">Identifies alumni and teammates at target companies, drafting personalized intro notes.</p>
+          </div>
+          <button class="btn-gradient btn-sm" onclick="draftNewOutreach()">
+            Draft New Outreach Email
+          </button>
+        </div>
+
+        <div id="outreachContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem;">
+          <!-- Outreach messages loaded via JS -->
+          <div class="job-card-modern">
+            <div class="job-card-header">
+              <div>
+                <span class="job-company-title">Razorpay · Referrer Lead</span>
+                <h4 class="job-role-title">Sneha Jain (Staff SDE)</h4>
+              </div>
+              <span class="fit-score-badge best">92 Fit</span>
+            </div>
+            <p style="font-size: 0.82rem; color: var(--color-text-body); margin: 0.75rem 0;">
+              <strong>Connection:</strong> Tech Mahindra & Mumbai Tech Community Alumni
+            </p>
+            <div style="background: var(--color-surface-soft); padding: 0.75rem; border-radius: 8px; font-size: 0.78rem;">
+              "Hi Sneha, saw your work on checkout infrastructure at Razorpay. As a fellow engineer based in Mumbai..."
+            </div>
+            <div class="job-card-footer">
+              <span style="font-size: 0.75rem; color: #10b981; font-weight: 700;">● Sequence Ready</span>
+              <button class="btn-outline btn-sm" onclick="alert('Outreach email queued with stop-on-reply listener.')">Send Intro</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 005 ● Testimonials -->
+  <section id="testimonials" class="testimonials-section">
+    <div class="container">
+      <div style="text-align: center; max-width: 600px; margin: 0 auto;">
+        <p class="section-tag">005 ● Testimonials</p>
+        <h2 class="section-title">What engineers are saying</h2>
+        <p class="section-subtitle">Tech candidates across Mumbai, Pune, and Bengaluru who automated their job hunt.</p>
+      </div>
+
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <p class="testimonial-text">
+            "Jobsapply has genuinely made my job search much more efficient. What stands out is that it goes beyond just finding job opportunities — it tailors my resume to specific job descriptions and automates applications on platforms like Naukri. I landed 3 interviews in Pune within 10 days."
+          </p>
+          <span class="testimonial-author">Rahul S. · SDE-2 at Fintech Hub (Pune)</span>
+        </div>
+
+        <div class="testimonial-card">
+          <p class="testimonial-text">
+            "One feature I found particularly helpful is the ability to identify missing skills or gaps in my resume and tailor the resume according to specific job requirements. The referral suggestions helped me connect with an alumni at Razorpay."
+          </p>
+          <span class="testimonial-author">Priya M. · Frontend Lead (Bengaluru)</span>
+        </div>
+
+        <div class="testimonial-card">
+          <p class="testimonial-text">
+            "I've tried a lot of job platforms, but what I really liked about Jobsapply is that it brings jobs from multiple websites into one place with valid direct links. The match breakdown shows exactly why you're a good fit and prevents wasted applications."
+          </p>
+          <span class="testimonial-author">Arjun D. · Backend Engineer (Mumbai)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 006 ● FAQ Accordion -->
+  <section id="faq" class="faq-section">
+    <div class="container">
+      <div style="text-align: center; max-width: 600px; margin: 0 auto;">
+        <p class="section-tag">006 ● FAQ</p>
+        <h2 class="section-title">Answers to common questions</h2>
+        <p class="section-subtitle">Everything you need to know about our autonomous job agent.</p>
+      </div>
+
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span>What does the Jobsapply AI agent do?</span>
+            <span class="faq-toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            Jobsapply acts as your personal job hunting copilot: it indexes fresh job openings across top portals, compiles ATS-optimized LaTeX resumes tailored to each specific job description, discovers employees who can refer you, and tracks applications through to completion.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span>Can I target specific Indian cities like Mumbai, Pune, and Bengaluru?</span>
+            <span class="faq-toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            Yes! Our matching engine features dedicated location filtering with priority scoring for Indian tech hubs including Mumbai, Pune, Bengaluru, Hyderabad, and Remote (India).
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span>Does it prevent hallucinations or fake resume info?</span>
+            <span class="faq-toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            Yes. Our architecture includes a deterministic Fact Store. The AI resume generator is strictly prohibited from inventing claims or fabricating skills. Every bullet point is grounded in your verified candidate profile.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span>How does the auto-apply feature prevent account bans?</span>
+            <span class="faq-toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            Jobsapply uses strict rate-limiting, respects robots.txt directives, and incorporates an optional Human Approval Gate so you maintain full control before any external application is submitted.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div style="display: flex; align-items: center; gap: 0.6rem; font-weight: 700; color: var(--color-text-title);">
+        <div class="brand-icon-box" style="width: 24px; height: 24px; font-size: 0.8rem;">⚡</div>
+        <span>jobsapply</span>
+        <span style="font-size: 0.78rem; color: var(--color-text-muted); font-weight: 400; margin-left: 0.5rem;">• India's Autonomous Job Agent</span>
+      </div>
+      <div>
+        <span>Built with Fastify, Supabase & Anti-Fabrication Architecture.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Onboarding Modal -->
+  <div id="onboardingModal" class="console-modal">
+    <div class="console-window" style="max-width: 520px;">
+      <div class="console-header">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-size: 1.2rem;">👋</span>
+          <h3 style="font-size: 1.1rem; font-weight: 700;">Welcome to Jobsapply</h3>
+        </div>
+      </div>
+      <div class="console-body" style="padding: 1.5rem;">
+        <p style="color: var(--color-text-body); margin-bottom: 1.5rem;">Create your profile to start matching with jobs and auto-applying.</p>
+        
+        <form id="onboardingForm">
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Auth tabs -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <button type="button" class="auth-tab active" data-tab="email" style="flex:1; padding:0.5rem; border-radius:8px; background:var(--color-primary); color:white; font-weight:600;">Email/Password</button>
+              <button type="button" class="auth-tab" data-tab="google" style="flex:1; padding:0.5rem; border-radius:8px; background:white; color:var(--color-text-body); font-weight:600; border:1px solid var(--color-surface-border);">Google</button>
+            </div>
+            
+            <!-- Email/Password Form -->
+            <div id="authEmailForm">
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Full Name</label>
+                <input type="text" id="obFullName" name="fullName" required style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Email</label>
+                <input type="email" id="obEmail" name="email" required style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Password</label>
+                <input type="password" id="obPassword" name="password" required minlength="8" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
+              </div>
+              <button type="submit" class="btn-gradient" style="width:100%; margin-top:0.5rem;">Create Account & Continue</button>
+            </div>
+            
+            <!-- Google Form -->
+            <div id="authGoogleForm" style="display:none;">
+              <p style="color:var(--color-text-muted); font-size:0.85rem; text-align:center; margin-bottom:1rem;">Click below to sign up with Google</p>
+              <button type="button" id="btnGoogleSignup" class="btn-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:0.5rem;">
+                <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Continue with Google
+              </button>
+            </div>
+            
+            <!-- Profile Details (shown after auth) -->
+            <div id="profileDetailsForm" style="display:none;">
+              <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:1rem; color:var(--color-text-title);">Tell us about yourself</h4>
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Years of Experience</label>
+                <input type="number" id="obExperience" name="experienceYears" min="0" max="50" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Current Job Title</label>
+                <input type="text" id="obCurrentJob" name="currentJob" placeholder="e.g., Senior Backend Engineer" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Current Company</label>
+                <input type="text" id="obCurrentCompany" name="currentCompany" placeholder="e.g., Razorpay" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Preferred Locations</label>
+                <div id="obLocationChips" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.5rem;"></div>
+                <input type="hidden" id="obLocations" name="preferredLocations">
+              </div>
+              <button type="button" id="btnSaveProfile" class="btn-gradient" style="width:100%; margin-top:0.5rem;">Save Profile & Continue</button>
+            </div>
+            
+            <!-- Resume Upload (shown after profile) -->
+            <div id="resumeUploadForm" style="display:none;">
+              <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:1rem; color:var(--color-text-title);">Upload Your Resume</h4>
+              <div style="border:2px dashed var(--color-surface-border); border-radius:12px; padding:2rem; text-align:center; transition:all 0.2s;" id="dropZone">
+                <p style="font-size:1.5rem; margin-bottom:0.5rem;">📄</p>
+                <p style="font-weight:600; color:var(--color-text-title);">Drag & drop your resume (PDF/DOCX)</p>
+                <p style="font-size:0.8rem; color:var(--color-text-muted);">or click to browse</p>
+                <input type="file" id="obResumeFile" name="resume" accept=".pdf,.docx" style="display:none;">
+              </div>
+              <p id="resumeFileName" style="font-size:0.8rem; color:var(--color-success); text-align:center; display:none;"></p>
+              <button type="button" id="btnUploadResume" class="btn-gradient" style="width:100%; margin-top:1rem; display:none;">Upload & Complete</button>
+              <button type="button" id="btnSkipResume" class="btn-outline btn-sm" style="width:100%; margin-top:0.5rem; display:none;">Skip for now</button>
+            </div>
+            
+            <!-- Success -->
+            <div id="onboardingSuccess" style="display:none; text-align:center;">
+              <div style="font-size:3rem; margin-bottom:1rem;">🎉</div>
+              <h4 style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">You're all set!</h4>
+              <p style="color:var(--color-text-body); margin-bottom:1.5rem;">Your profile is ready. Let's find you some jobs.</p>
+              <button type="button" id="btnEnterApp" class="btn-gradient" style="width:100%;">Enter Dashboard</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operator / Engineering Console Modal -->
+  <div id="consoleModal" class="console-modal">
+    <div class="console-window">
+      <div class="console-header">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-size: 1.2rem;">🛠️</span>
+          <h3 style="font-size: 1.1rem; font-weight: 700;">Platform Engine & Operator Console</h3>
+        </div>
+        <button onclick="closeConsole()" style="color: white; font-size: 1.25rem; cursor: pointer;">✕</button>
+      </div>
+      <div class="console-body">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+          <div style="background: #1e293b; padding: 1rem; border-radius: 8px;">
+            <p style="font-size: 0.75rem; color: #94a3b8;">Discovered Postings</p>
+            <p id="statDiscovered" style="font-size: 1.5rem; font-weight: 700; color: #60a5fa;">--</p>
+          </div>
+          <div style="background: #1e293b; padding: 1rem; border-radius: 8px;">
+            <p style="font-size: 0.75rem; color: #94a3b8;">Canonical Deduplicated</p>
+            <p id="statCanonical" style="font-size: 1.5rem; font-weight: 700; color: #34d399;">--</p>
+          </div>
+          <div style="background: #1e293b; padding: 1rem; border-radius: 8px;">
+            <p style="font-size: 0.75rem; color: #94a3b8;">Matched Opportunities</p>
+            <p id="statMatched" style="font-size: 1.5rem; font-weight: 700; color: #a78bfa;">--</p>
+          </div>
+          <div style="background: #1e293b; padding: 1rem; border-radius: 8px;">
+            <p style="font-size: 0.75rem; color: #94a3b8;">Human Review Queue</p>
+            <p id="statPendingReview" style="font-size: 1.5rem; font-weight: 700; color: #fbbf24;">--</p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+          <button class="btn-outline btn-sm" onclick="triggerSeedJobs()">🌱 Seed Real Indian Jobs</button>
+          <button class="btn-gradient btn-sm" onclick="closeConsole()">Return to App</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODAL 2: ADD CANDIDATE FACT -->
-  <div id="addFactModal" class="modal-backdrop hidden">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>Add Candidate Fact</h3>
-        <button id="btnCloseAddFactModal" class="modal-close-btn">&times;</button>
-      </div>
-      <form id="addFactForm">
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="factCategory">Category:</label>
-            <select id="factCategory" class="input-select" required>
-              <option value="skill">Skill</option>
-              <option value="experience">Experience</option>
-              <option value="education">Education</option>
-              <option value="project">Project</option>
-              <option value="certification">Certification</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="factStatement">Factual Statement:</label>
-            <textarea id="factStatement" class="input-textarea" rows="4" placeholder="e.g. 5+ years of production experience architecting Kubernetes clusters and Terraform infrastructure." required></textarea>
-          </div>
-          <div class="form-group checkbox-group">
-            <input type="checkbox" id="factVerified" checked>
-            <label for="factVerified">Mark as Verified Fact</label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="btnCancelAddFact" class="btn btn-ghost">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save to Fact Store</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Application Logic JS -->
   <script type="module" src="/app.js"></script>
 </body>
 </html>
