@@ -1,9 +1,119 @@
 import type { FastifyInstance } from 'fastify';
 import { sql } from '../../db/index.js';
+import { supabase } from '../../db/index.js';
+import { createHash } from 'crypto';
 
 const db = sql!;
 
 export async function documentRoutes(app: FastifyInstance) {
+  // POST /api/resumes/upload - Upload resume PDF/DOCX to Supabase Storage
+  app.post<{
+    Body: { candidateId: string };
+  }>('/api/resumes/upload', async (req, reply) => {
+    const data = await req.file();
+    if (!data) {
+      return reply.code(400).send({ success: false, error: 'No file uploaded' });
+    }
+
+    // Get candidateId from fields
+    let candidateId: string | undefined;
+    if (data.fields && typeof data.fields === 'object' && 'candidateId' in data.fields) {
+      const field = (data.fields as Record<string, { value: string }>).candidateId;
+      candidateId = field?.value;
+    }
+    if (!candidateId) {
+      return reply.code(400).send({ success: false, error: 'candidateId is required' });
+    }
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(data.mimetype)) {
+      return reply.code(400).send({ success: false, error: 'Only PDF and DOCX files are allowed' });
+    }
+
+    // Read file buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) {
+      chunks.push(chunk);
+    }
+    const fileBuffer = Buffer.concat(chunks);
+    const fileHash = createHash('sha256').update(fileBuffer).digest('hex');
+
+    // Check if already uploaded (dedup by hash)
+    const [existingArtifact] = await db`
+      SELECT id, storage_path FROM docs.artifacts WHERE content_hash = ${fileHash}
+    `;
+
+    let artifactId: string;
+    let storagePath: string;
+
+    if (existingArtifact) {
+      artifactId = existingArtifact.id;
+      storagePath = existingArtifact.storage_path;
+    } else {
+      // Upload to Supabase Storage
+      const fileName = `resumes/${candidateId}/${fileHash}.pdf`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('artifacts')
+        .upload(fileName, fileBuffer, {
+          contentType: 'application/pdf',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        return reply.code(500).send({ success: false, error: uploadError.message });
+      }
+
+      storagePath = uploadData.path;
+
+      // Create artifact record
+      const [artifact] = await db`
+        INSERT INTO docs.artifacts (content_hash, mime_type, storage_path, size_bytes)
+        VALUES (${fileHash}, 'application/pdf', ${storagePath}, ${fileBuffer.length})
+        RETURNING id
+      `;
+      artifactId = artifact.id;
+    }
+
+    // Create or get master resume container
+    let [resume] = await db`
+      SELECT id FROM docs.resumes WHERE candidate_id = ${candidateId} AND is_master = true
+    `;
+
+    if (!resume) {
+      [resume] = await db`
+        INSERT INTO docs.resumes (candidate_id, title, is_master)
+        VALUES (${candidateId}, 'Master Resume', true)
+        RETURNING id
+      `;
+    }
+
+    // Create resume version v1 (or next version)
+    const [lastVersion] = await db`
+      SELECT version_no FROM docs.resume_versions WHERE resume_id = ${resume.id} ORDER BY version_no DESC LIMIT 1
+    `;
+    const nextVersion = (lastVersion?.version_no ?? 0) + 1;
+
+    const [version] = await db`
+      INSERT INTO docs.resume_versions (resume_id, version_no, content_hash, template_name, artifact_id, plan)
+      VALUES (${resume.id}, ${nextVersion}, ${fileHash}, 'uploaded', ${artifactId}, ${'{}'})
+      RETURNING id
+    `;
+
+    return reply.code(201).send({
+      success: true,
+      data: {
+        artifactId,
+        resumeId: resume.id,
+        versionId: version.id,
+        versionNo: nextVersion,
+        storagePath,
+        fileHash,
+      },
+    });
+  });
+
+  // GET /api/resumes - List resumes for a candidate
   // GET /api/resumes - List resumes for a candidate
   app.get<{
     Querystring: {

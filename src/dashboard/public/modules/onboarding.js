@@ -28,21 +28,20 @@ export async function loadCandidateData(candidateId) {
 }
 
 function renderOnboardingUI() {
-  const p = state.candidateProfile;
-  if (!p) return;
+  const p = state.candidateProfile || {};
 
   // 1. Basic Info Fields
   const nameInput = document.getElementById('inputFullName');
-  if (nameInput) nameInput.value = p.fullName || '';
+  if (nameInput) nameInput.value = p.fullName || (state.currentUser?.fullName || '');
 
   const emailInput = document.getElementById('inputEmail');
-  if (emailInput) emailInput.value = p.email || '';
+  if (emailInput) emailInput.value = p.email || (state.currentUser?.email || '');
 
   const roleInput = document.getElementById('inputCurrentJob');
-  if (roleInput) roleInput.value = p.currentJob || 'Full-Stack Engineer';
+  if (roleInput) roleInput.value = p.currentJob || 'Full Stack Engineer';
 
   const expInput = document.getElementById('inputExpYears');
-  if (expInput) expInput.value = p.experienceYears ?? 5;
+  if (expInput) expInput.value = p.experienceYears ?? 4;
 
   // 2. Location Preference Chips
   renderLocationChips(p.preferredLocations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote']);
@@ -68,7 +67,7 @@ function renderLocationChips(preferred) {
   ];
 
   container.innerHTML = availableLocations.map(loc => {
-    const isSelected = preferred.includes(loc.key);
+    const isSelected = (preferred || []).includes(loc.key);
     return `
       <button type="button" 
         class="chip-btn ${isSelected ? 'active' : ''}" 
@@ -81,11 +80,12 @@ function renderLocationChips(preferred) {
 }
 
 export function togglePreferredLocation(locKey) {
-  if (!state.candidateProfile) return;
-  const current = state.candidateProfile.preferredLocations || [];
+  if (!state.candidateProfile) {
+    state.candidateProfile = { preferredLocations: ['Mumbai', 'Pune', 'Bengaluru', 'Remote'] };
+  }
+  const current = state.candidateProfile.preferredLocations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote'];
   let updated;
   if (current.includes(locKey)) {
-    // Keep at least one location
     if (current.length === 1) {
       alert('You must have at least one preferred location.');
       return;
@@ -126,22 +126,101 @@ export async function addCustomSkill() {
   if (!input || !input.value.trim()) return;
 
   const skillName = input.value.trim();
-  if (!state.activeCandidateId) return;
+  if (state.activeCandidateId) {
+    try {
+      await api(`/api/candidates/${state.activeCandidateId}/facts`, {
+        method: 'POST',
+        body: JSON.stringify({
+          category: 'SKILL',
+          statement: skillName,
+          verified: true,
+        }),
+      });
+      await loadCandidateData(state.activeCandidateId);
+    } catch {}
+  } else {
+    state.facts.push({ category: 'SKILL', statement: skillName, verified: true });
+    renderSkillBadges();
+    calculateAtsScore();
+  }
+  input.value = '';
+}
+
+// Parse Resume Text or Uploaded File
+export async function parseResumeInput() {
+  const textarea = document.getElementById('inputResumeText');
+  const text = textarea?.value?.trim();
+
+  if (!text || text.length < 10) {
+    alert('Please paste your resume text (or drag & drop a file) first.');
+    return;
+  }
+
+  const btn = document.getElementById('btnParseResume');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Extracting Skills & Experience...';
+  }
 
   try {
-    await api(`/api/candidates/${state.activeCandidateId}/facts`, {
+    const res = await api('/api/candidates/parse-resume', {
       method: 'POST',
       body: JSON.stringify({
-        category: 'SKILL',
-        statement: skillName,
-        verified: true,
+        resumeText: text,
+        candidateId: state.activeCandidateId,
       }),
     });
-    input.value = '';
-    await loadCandidateData(state.activeCandidateId);
+
+    const parsed = res.data;
+    
+    // Auto-fill form inputs
+    const roleInput = document.getElementById('inputCurrentJob');
+    if (roleInput && parsed.suggestedTitle) {
+      roleInput.value = parsed.suggestedTitle;
+    }
+
+    const expInput = document.getElementById('inputExpYears');
+    if (expInput && parsed.experienceYears) {
+      expInput.value = parsed.experienceYears;
+    }
+
+    // Update skills list
+    if (parsed.skills && parsed.skills.length > 0) {
+      state.facts = parsed.skills.map(s => ({ category: 'SKILL', statement: s, verified: true }));
+      renderSkillBadges();
+    }
+
+    // Update ATS Score
+    const scoreEl = document.getElementById('atsScoreValue');
+    if (scoreEl && parsed.atsScore) {
+      scoreEl.textContent = parsed.atsScore;
+    }
+
+    alert(`Extracted ${parsed.skills.length} skills and estimated ${parsed.experienceYears} years experience! ATS Score: ${parsed.atsScore}/100.`);
   } catch (err) {
-    alert(`Could not add skill: ${err.message}`);
+    alert(`Could not extract resume: ${err.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Extract Skills & Details from Resume';
+    }
   }
+}
+
+export function handleResumeFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const content = e.target?.result;
+    if (typeof content === 'string') {
+      const textarea = document.getElementById('inputResumeText');
+      if (textarea) textarea.value = content;
+      await parseResumeInput();
+    }
+  };
+  reader.readAsText(file);
 }
 
 function calculateAtsScore() {
@@ -156,43 +235,75 @@ function calculateAtsScore() {
 }
 
 export async function savePreferencesAndSearch() {
-  if (!state.activeCandidateId || !state.candidateProfile) {
-    alert('Please select or create a candidate profile first.');
-    return;
-  }
-
   const nameInput = document.getElementById('inputFullName');
+  const emailInput = document.getElementById('inputEmail');
   const roleInput = document.getElementById('inputCurrentJob');
   const expInput = document.getElementById('inputExpYears');
 
-  const fullName = nameInput ? nameInput.value.trim() : state.candidateProfile.fullName;
-  const currentJob = roleInput ? roleInput.value.trim() : state.candidateProfile.currentJob;
-  const experienceYears = expInput ? parseInt(expInput.value, 10) : state.candidateProfile.experienceYears;
-  const preferredLocations = state.candidateProfile.preferredLocations;
+  const fullName = nameInput ? nameInput.value.trim() : (state.candidateProfile?.fullName || 'Candidate');
+  const email = emailInput ? emailInput.value.trim() : (state.candidateProfile?.email || state.currentUser?.email || '');
+  const currentJob = roleInput ? roleInput.value.trim() : 'Full Stack Engineer';
+  const experienceYears = expInput ? parseInt(expInput.value, 10) : 4;
+  const preferredLocations = state.candidateProfile?.preferredLocations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote'];
+
+  if (!email) {
+    alert('Please enter your email address.');
+    return;
+  }
 
   const saveBtn = document.getElementById('btnSavePreferences');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving Preferences...';
+    saveBtn.textContent = 'Activating Your AI Agent...';
   }
 
   try {
-    // 1. Update Preferences (Locations)
-    await api(`/api/candidates/${state.activeCandidateId}/preferences`, {
-      method: 'PATCH',
-      body: JSON.stringify({ preferredLocations }),
-    });
+    if (state.activeCandidateId) {
+      // 1. Update existing profile
+      await api(`/api/candidates/${state.activeCandidateId}/preferences`, {
+        method: 'PATCH',
+        body: JSON.stringify({ preferredLocations }),
+      });
 
-    // 2. Update Profile Details
-    await api(`/api/candidates/${state.activeCandidateId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ fullName, currentJob, experienceYears }),
-    });
+      await api(`/api/candidates/${state.activeCandidateId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fullName, currentJob, experienceYears }),
+      });
+    } else {
+      // 2. Create new profile for this user
+      try {
+        const createRes = await api('/api/candidates', {
+          method: 'POST',
+          body: JSON.stringify({
+            fullName,
+            email,
+            preferredLocations,
+            currentLocation: 'India',
+            experienceYears,
+            currentJob,
+            authUserId: state.currentUser?.id,
+          }),
+        });
+        state.activeCandidateId = createRes.data?.id;
+      } catch (postErr) {
+        const listRes = await api('/api/candidates?includeTest=true');
+        const match = (listRes.data || []).find(c => c.email === email);
+        if (match) {
+          state.activeCandidateId = match.id;
+          await api(`/api/candidates/${match.id}/preferences`, {
+            method: 'PATCH',
+            body: JSON.stringify({ preferredLocations }),
+          });
+        } else {
+          throw postErr;
+        }
+      }
+    }
 
-    // 3. Notify app and switch to live job matching
     emit('profile:updated', { preferredLocations });
     
-    // Smooth transition to Step 2
+    alert('Your AI Job Agent is activated! Discovering live matches in Mumbai, Pune, and Bengaluru.');
+
     if (window.switchStep) {
       window.switchStep('jobs');
     }
@@ -201,7 +312,7 @@ export async function savePreferencesAndSearch() {
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.textContent = '✓ Save Preferences & Start Hunt';
+      saveBtn.textContent = '🚀 Activate My Job Agent & Search Jobs';
     }
   }
 }
@@ -210,6 +321,16 @@ function setupEventListeners() {
   const btnSave = document.getElementById('btnSavePreferences');
   if (btnSave) {
     btnSave.addEventListener('click', savePreferencesAndSearch);
+  }
+
+  const btnParse = document.getElementById('btnParseResume');
+  if (btnParse) {
+    btnParse.addEventListener('click', parseResumeInput);
+  }
+
+  const fileInput = document.getElementById('inputResumeFile');
+  if (fileInput) {
+    fileInput.addEventListener('change', handleResumeFileUpload);
   }
 
   const btnAddSkill = document.getElementById('btnAddSkill');

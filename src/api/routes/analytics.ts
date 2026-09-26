@@ -4,6 +4,24 @@ import { sql } from '../../db/index.js';
 const db = sql!;
 
 export async function analyticsRoutes(app: FastifyInstance) {
+  // GET /api/analytics/funnel - Funnel metrics for dashboard and engineering console
+  app.get('/api/analytics/funnel', async (_req, reply) => {
+    const [rawStats] = await db`SELECT count(*) as total_postings FROM ingest.raw_postings`;
+    const [jobStats] = await db`SELECT count(*) as total_canonical FROM jobs.jobs`;
+    const [matchStats] = await db`SELECT count(*) as total_matches FROM jobs.job_matches`;
+    const [pendingStats] = await db`SELECT count(*) as pending_count FROM apply.applications WHERE status = 'PENDING_APPROVAL'`;
+
+    return reply.send({
+      success: true,
+      data: {
+        discoveredCount: Number(rawStats?.total_postings || 0),
+        canonicalCount: Number(jobStats?.total_canonical || 0),
+        matchedCount: Number(matchStats?.total_matches || 0),
+        pendingApprovalCount: Number(pendingStats?.pending_count || 0),
+      },
+    });
+  });
+
   // GET /api/analytics/metrics - Comprehensive funnel analytics and quota limits
   app.get('/api/analytics/metrics', async (_req, reply) => {
     // 1. Raw postings discovered

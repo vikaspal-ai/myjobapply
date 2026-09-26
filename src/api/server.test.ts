@@ -10,17 +10,25 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
   let testCandidateId: string;
   let testCompanyId: string;
   let testJobId: string;
+  let testRunId: string;
 
   beforeAll(async () => {
     app = await buildApp();
     await app.ready();
 
-    // 1. Seed candidate profile
+    testRunId = `test_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const testEmail = `test.candidate.${testRunId}@example.com`;
+    const testCompanyName = `Test Company ${testRunId}`;
+    const testDomain = `test-${testRunId}.com`;
+    const testSig = `sig_${testRunId}_${Math.random().toString(36).slice(2)}`;
+    const testApplyUrl = `https://${testDomain}/careers/sec-arch`;
+
+    // 1. Seed candidate profile (unique test email)
     const [candidate] = await db`
       INSERT INTO profile.candidate_profiles (
-        full_name, email
+        full_name, email, is_demo
       ) VALUES (
-        'Sarah Connor', ${'sarah.api.' + Date.now() + '@example.com'}
+        'Test Candidate', ${testEmail}, false
       )
       RETURNING id
     `;
@@ -29,14 +37,14 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
     // 2. Seed company
     const [company] = await db`
       INSERT INTO discovery.companies (name)
-      VALUES (${'Cyberdyne API ' + Date.now()})
+      VALUES (${testCompanyName})
       RETURNING id
     `;
     testCompanyId = company.id;
 
     await db`
       INSERT INTO discovery.company_domains (company_id, domain, verified)
-      VALUES (${testCompanyId}, ${'cyberdyne-' + Date.now() + '.com'}, true)
+      VALUES (${testCompanyId}, ${testDomain}, true)
     `;
 
     // 3. Seed job
@@ -46,12 +54,12 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
       ) VALUES (
         ${testCompanyId},
         'Principal Security Architect',
-        ${'sig_api_' + Date.now() + '_' + Math.random().toString(36).slice(2)},
+        ${testSig},
         'Security',
         'Principal',
         ${db.json({ type: 'REMOTE' })},
         'Zero trust security, Kubernetes hardening, threat modeling',
-        'https://cyberdyne.com/careers/sec-arch',
+        ${testApplyUrl},
         ${db.json({ ats_name: 'Greenhouse' })}
       )
       RETURNING id
@@ -60,6 +68,16 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
   });
 
   afterAll(async () => {
+    // Cleanup test data (order matters due to FK constraints)
+    await db`DELETE FROM jobs.job_match_criteria WHERE match_id IN (SELECT id FROM jobs.job_matches WHERE candidate_id = ${testCandidateId})`;
+    await db`DELETE FROM jobs.job_matches WHERE candidate_id = ${testCandidateId}`;
+    await db`DELETE FROM apply.application_runs WHERE application_id IN (SELECT id FROM apply.applications WHERE candidate_id = ${testCandidateId})`;
+    await db`DELETE FROM apply.applications WHERE candidate_id = ${testCandidateId}`;
+    await db`DELETE FROM profile.candidate_facts WHERE candidate_id = ${testCandidateId}`;
+    await db`DELETE FROM profile.candidate_profiles WHERE id = ${testCandidateId}`;
+    await db`DELETE FROM jobs.jobs WHERE id = ${testJobId}`;
+    await db`DELETE FROM discovery.company_domains WHERE company_id = ${testCompanyId}`;
+    await db`DELETE FROM discovery.companies WHERE id = ${testCompanyId}`;
     await app.close();
   });
 
@@ -88,10 +106,10 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
   });
 
   it('Candidate & Facts REST API: lists candidates, creates fact, and toggles verification', async () => {
-    // 1. List candidates
+    // 1. List candidates (include test users)
     const listRes = await app.inject({
       method: 'GET',
-      url: '/api/candidates',
+      url: '/api/candidates?includeTest=true',
     });
     expect(listRes.statusCode).toBe(200);
     const listBody = JSON.parse(listRes.payload);
@@ -155,7 +173,7 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
     expect(jobRes.statusCode).toBe(200);
     const jobBody = JSON.parse(jobRes.payload);
     expect(jobBody.data.title).toBe('Principal Security Architect');
-    expect(jobBody.data.companyName).toContain('Cyberdyne');
+    expect(jobBody.data.companyName).toContain('Test Company');
   });
 
   it('Application Lifecycle via REST: draft -> prepare -> blocks unapproved submission -> approves -> sandbox run', async () => {
@@ -256,9 +274,37 @@ describe('Phase 6: BFF REST API & Web Dashboard Endpoints', () => {
     expect(typeof data.dailyBudget.remainingDailyAllowance).toBe('number');
     expect(data.atsDistribution).toBeDefined();
     expect(data.crawlerHealth).toBeDefined();
+
+    // Verify /api/analytics/funnel alias endpoint works cleanly
+    const funnelRes = await app.inject({
+      method: 'GET',
+      url: '/api/analytics/funnel',
+    });
+    expect(funnelRes.statusCode).toBe(200);
+    const funnelBody = JSON.parse(funnelRes.payload);
+    expect(funnelBody.success).toBe(true);
+    expect(funnelBody.data.discoveredCount).toBeDefined();
   });
 
-  it('Pipeline REST API: returns queue stats and processes outbox batch', async () => {
+  it('Candidate Resume Parsing: extracts skills, experience years, and ATS score', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/candidates/parse-resume',
+      payload: {
+        resumeText: 'Senior Backend Engineer with 5 years experience in Node.js, TypeScript, PostgreSQL, Docker, AWS, React and Fastify in Pune.',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.success).toBe(true);
+    expect(body.data.skills).toContain('Node.js');
+    expect(body.data.skills).toContain('Postgresql');
+    expect(body.data.experienceYears).toBe(5);
+    expect(body.data.atsScore).toBeGreaterThanOrEqual(70);
+  });
+
+  it('Pipeline REST API: returns queue stats and processes outbox batch', { timeout: 60000 }, async () => {
     // 1. Pipeline Status
     const statusRes = await app.inject({
       method: 'GET',

@@ -1,8 +1,9 @@
 // Jobsapply Master Client Orchestrator (ES Module)
-// Coordinates modular subsystems: Onboarding, Job Feed, Apply Tracker, Referrals & Console
+// Coordinates modular subsystems: Auth, Onboarding, Job Feed, Apply Tracker, Referrals & Console
 
 import { api } from './modules/api.js';
 import { state, on } from './modules/state.js';
+import * as authMod from './modules/auth.js';
 import * as onboarding from './modules/onboarding.js';
 import * as jobsFeed from './modules/jobs-feed.js';
 import * as applyTracker from './modules/apply-tracker.js';
@@ -10,6 +11,7 @@ import * as referrals from './modules/referrals.js';
 import * as consoleMod from './modules/console.js';
 
 // Expose modules to window for inline onclick handlers
+window.authModule = authMod;
 window.onboardingModule = onboarding;
 window.jobsFeedModule = jobsFeed;
 window.applyTrackerModule = applyTracker;
@@ -81,6 +83,7 @@ window.toggleFaq = function(btn) {
 
 // Bootstrap application on DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
+  authMod.initAuth();
   setupCandidateSelect();
   await loadCandidates();
   await onboarding.initOnboarding();
@@ -88,9 +91,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   await applyTracker.initApplyTracker();
   await referrals.initReferrals();
   await consoleMod.initConsole();
+
+  // Listen for login event to sync user profile
+  on('auth:login', async (user) => {
+    // Check if user has an existing candidate profile
+    const res = await api('/api/candidates?includeTest=true');
+    const matching = (res.data || []).find(c => c.email === user.email);
+    if (matching) {
+      state.activeCandidateId = matching.id;
+      await onboarding.loadCandidateData(matching.id);
+      await jobsFeed.loadJobs();
+    } else {
+      // First time user: open onboarding form in Step 1
+      state.activeCandidateId = null;
+      window.switchStep('profile');
+      const nameInput = document.getElementById('inputFullName');
+      const emailInput = document.getElementById('inputEmail');
+      if (nameInput) nameInput.value = user.fullName || '';
+      if (emailInput) emailInput.value = user.email || '';
+    }
+  });
 });
 
-// Candidate selector handler
+// Candidate selector handler (for admin / multi-profile switching)
 function setupCandidateSelect() {
   const select = document.getElementById('candidateSelect');
   if (select) {
@@ -106,7 +129,7 @@ function setupCandidateSelect() {
 
 async function loadCandidates() {
   try {
-    const res = await api('/api/candidates');
+    const res = await api('/api/candidates?includeTest=true');
     state.candidates = res.data || [];
     const select = document.getElementById('candidateSelect');
     if (!select) return;
@@ -124,7 +147,19 @@ async function loadCandidates() {
       select.appendChild(opt);
     });
 
-    state.activeCandidateId = state.candidates[0].id;
+    // If logged in, prioritize the logged in user's profile
+    if (state.currentUser) {
+      const mine = state.candidates.find(c => c.email === state.currentUser.email);
+      if (mine) {
+        state.activeCandidateId = mine.id;
+        select.value = mine.id;
+        return;
+      }
+    }
+
+    if (!state.activeCandidateId && state.candidates.length > 0) {
+      state.activeCandidateId = state.candidates[0].id;
+    }
   } catch (err) {
     console.error('Failed to load candidate list:', err);
   }

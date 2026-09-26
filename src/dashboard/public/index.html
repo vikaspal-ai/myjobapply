@@ -30,23 +30,35 @@
       </div>
 
       <div class="nav-actions">
-        <!-- Candidate Profile Switcher -->
-        <div class="candidate-pill">
-          <span class="pill-emoji">👤</span>
-          <select id="candidateSelect">
-            <option value="">Loading...</option>
-          </select>
+        <!-- Guest / Unauthenticated Actions -->
+        <div id="unauthNavActions" style="display: flex; align-items: center; gap: 0.6rem;">
+          <button type="button" class="btn-outline btn-sm" onclick="window.authModule.openAuthModal('signin')">
+            Sign In
+          </button>
+          <button type="button" class="btn-gradient btn-sm" onclick="window.authModule.openAuthModal('signup')">
+            Start free
+          </button>
         </div>
 
-        <!-- Toggle to Engineering Console -->
-        <button id="openConsoleBtn" class="btn-outline btn-sm" title="View Pipeline Engine & Metrics">
-          <span style="font-size: 0.85em; line-height: 1;">🛠️</span> <span class="btn-label">Console</span>
-        </button>
+        <!-- Authenticated User Actions (hidden by default) -->
+        <div id="authNavActions" style="display: none; align-items: center; gap: 0.6rem;">
+          <div class="candidate-pill">
+            <span class="pill-emoji">👤</span>
+            <span id="navUserName" style="font-weight: 700; color: var(--color-text-title);">User</span>
+          </div>
 
-        <!-- CTA Button -->
-        <a href="#workspace" class="btn-gradient btn-sm">
-          Start free
-        </a>
+          <button type="button" class="btn-outline btn-sm" onclick="window.authModule.logout()" title="Sign out of your account">
+            Log Out
+          </button>
+
+          <!-- Toggle to Engineering Console -->
+          <button id="openConsoleBtn" class="btn-outline btn-sm" title="View Pipeline Engine & Metrics">
+            <span style="font-size: 0.85em; line-height: 1;">🛠️</span> <span class="btn-label">Console</span>
+          </button>
+        </div>
+
+        <!-- Hidden candidate select for internal routing -->
+        <select id="candidateSelect" style="display: none;"></select>
       </div>
     </nav>
   </header>
@@ -73,11 +85,11 @@
         </p>
 
         <div class="hero-buttons">
-          <a href="#workspace" class="btn-gradient" onclick="switchStep('jobs')">
-            Explore 11+ Live Indian Jobs
-          </a>
-          <a href="#workspace" class="btn-outline" onclick="switchStep('profile')">
-            Test ATS Resume Score
+          <button type="button" class="btn-gradient" onclick="window.authModule.openAuthModal('signup')">
+            Start Free (Upload Resume) 🚀
+          </button>
+          <a href="#how-it-works" class="btn-outline">
+            See How Agent Works ↓
           </a>
         </div>
 
@@ -317,77 +329,121 @@
       <h2 class="section-title">How our AI job agent operates: <span style="color: var(--color-primary);">five automated steps.</span></h2>
       <p class="section-subtitle">Experience each stage of your autonomous job search right here.</p>
 
-      <!-- 5-Step Navigation Pills -->
-      <div id="workspace" class="step-nav-bar">
-        <button class="step-nav-btn active" onclick="switchStep('profile')">
-          <span class="step-nav-num">1</span> Profile & ATS Analyzer
-        </button>
-        <button class="step-nav-btn" onclick="switchStep('jobs')">
-          <span class="step-nav-num">2</span> Live Job Matches
-        </button>
-        <button class="step-nav-btn" onclick="switchStep('resume')">
-          <span class="step-nav-num">3</span> Tailored Resumes
-        </button>
-        <button class="step-nav-btn" onclick="switchStep('apply')">
-          <span class="step-nav-num">4</span> Auto-Apply Tracker
-        </button>
-        <button class="step-nav-btn" onclick="switchStep('referrals')">
-          <span class="step-nav-num">5</span> Referrals & Outreach
-        </button>
+      <!-- Guest Gateway Card (shown when visitor is not logged in) -->
+      <div id="guestWorkspaceBanner" style="background: white; border: 1px solid var(--color-surface-border); border-radius: var(--radius-3xl); margin-top: 2.5rem; box-shadow: var(--shadow-md); overflow: hidden;">
+        <div style="text-align: center; max-width: 680px; margin: 0 auto; padding: 4rem 1.5rem;">
+          <div style="width: 60px; height: 60px; border-radius: 18px; background: rgba(37,99,235,0.1); color: #2563eb; display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 1.25rem;">⚡</div>
+          <h3 style="font-size: 2rem; font-weight: 800; color: var(--color-text-title); letter-spacing: -0.03em; margin-bottom: 0.75rem;">
+            India's First AI Job Hunting Agent
+          </h3>
+          <p style="font-size: 1.05rem; color: var(--color-text-body); line-height: 1.6; margin-bottom: 2rem;">
+            Tired of endless manual applications? Sign in to upload your resume, select your target locations (Mumbai, Pune, Bengaluru), and let our agent tailor ATS resumes and apply for you around the clock.
+          </p>
+          <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <button type="button" class="btn-gradient" style="padding: 0.8rem 2.2rem; font-size: 1rem;" onclick="window.authModule.openAuthModal('signup')">
+              Create Your Free Account 🚀
+            </button>
+            <button type="button" class="btn-outline" style="padding: 0.8rem 1.8rem; font-size: 1rem;" onclick="window.authModule.openAuthModal('signin')">
+              Sign In to Your Agent
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- STEP 1 PANEL: ATS ANALYZER & PROFILE -->
-      <div id="step-panel-profile" class="step-workspace-panel active">
-        <div class="ats-score-grid">
-          <!-- Dial Card -->
-          <div class="ats-score-dial-card">
-            <span style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.1em; color: #93c5fd; font-weight: 700;">ATS Compatibility Score</span>
-            <div class="ats-score-circle">
-              <span id="atsScoreValue">92</span><span class="ats-score-max">/100</span>
+      <!-- Authenticated User Workspace Container (hidden until logged in) -->
+      <div id="userWorkspaceContainer" style="display: none;">
+
+        <!-- 5-Step Navigation Pills -->
+        <div id="workspace" class="step-nav-bar">
+          <button class="step-nav-btn active" onclick="switchStep('profile')">
+            <span class="step-nav-num">1</span> Profile & ATS Analyzer
+          </button>
+          <button class="step-nav-btn" onclick="switchStep('jobs')">
+            <span class="step-nav-num">2</span> Live Job Matches
+          </button>
+          <button class="step-nav-btn" onclick="switchStep('resume')">
+            <span class="step-nav-num">3</span> Tailored Resumes
+          </button>
+          <button class="step-nav-btn" onclick="switchStep('apply')">
+            <span class="step-nav-num">4</span> Auto-Apply Tracker
+          </button>
+          <button class="step-nav-btn" onclick="switchStep('referrals')">
+            <span class="step-nav-num">5</span> Referrals & Outreach
+          </button>
+        </div>
+
+        <!-- STEP 1 PANEL: ATS ANALYZER & PROFILE -->
+        <div id="step-panel-profile" class="step-workspace-panel active">
+          <div class="ats-score-grid">
+            <!-- Dial Card -->
+            <div class="ats-score-dial-card">
+              <span style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.1em; color: #93c5fd; font-weight: 700;">ATS Compatibility Score</span>
+              <div class="ats-score-circle">
+                <span id="atsScoreValue">92</span><span class="ats-score-max">/100</span>
+              </div>
+              <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Optimized for Indian Tech Roles</p>
+
+              <div class="ats-metric-bars">
+                <div class="ats-bar-row">
+                  <div class="ats-bar-labels">
+                    <span>Keyword Coverage</span>
+                    <span id="atsKeywordsPercent">96%</span>
+                  </div>
+                  <div class="ats-progress-track">
+                    <div class="ats-progress-fill" style="width: 96%;"></div>
+                  </div>
+                </div>
+
+                <div class="ats-bar-row">
+                  <div class="ats-bar-labels">
+                    <span>Quantified Achievements</span>
+                    <span>88%</span>
+                  </div>
+                  <div class="ats-progress-track">
+                    <div class="ats-progress-fill" style="width: 88%;"></div>
+                  </div>
+                </div>
+
+                <div class="ats-bar-row">
+                  <div class="ats-bar-labels">
+                    <span>Location Match (Mumbai, Pune, BLR)</span>
+                    <span style="color: #34d399; font-weight: 700;">100%</span>
+                  </div>
+                  <div class="ats-progress-track">
+                    <div class="ats-progress-fill" style="width: 100%; background: #10b981;"></div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Optimized for Indian Tech Roles</p>
-
-            <div class="ats-metric-bars">
-              <div class="ats-bar-row">
-                <div class="ats-bar-labels">
-                  <span>Keyword Coverage</span>
-                  <span id="atsKeywordsPercent">96%</span>
-                </div>
-                <div class="ats-progress-track">
-                  <div class="ats-progress-fill" style="width: 96%;"></div>
-                </div>
-              </div>
-
-              <div class="ats-bar-row">
-                <div class="ats-bar-labels">
-                  <span>Quantified Achievements</span>
-                  <span>88%</span>
-                </div>
-                <div class="ats-progress-track">
-                  <div class="ats-progress-fill" style="width: 88%;"></div>
-                </div>
-              </div>
-
-              <div class="ats-bar-row">
-                <div class="ats-bar-labels">
-                  <span>Location Match (Mumbai, Pune, BLR)</span>
-                  <span style="color: #34d399; font-weight: 700;">100%</span>
-                </div>
-                <div class="ats-progress-track">
-                  <div class="ats-progress-fill" style="width: 100%; background: #10b981;"></div>
-                </div>
-              </div>
-            </div>
-          </div>
 
             <!-- Onboarding & Location Preferences Form -->
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
                 <div>
                   <h3 style="font-size: 1.35rem; font-weight: 700; color: var(--color-text-title);" id="candidateNameHeader">Candidate Profile & Target Locations</h3>
-                  <p style="font-size: 0.88rem; color: var(--color-text-body);" id="candidateSummaryText">Set your professional background and location preferences to trigger AI job search.</p>
+                  <p style="font-size: 0.88rem; color: var(--color-text-body);" id="candidateSummaryText">Upload your resume to extract skills and set your target cities.</p>
                 </div>
                 <span style="background: rgba(16,185,129,0.15); color: #10b981; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 9999px;">Verified Facts</span>
+              </div>
+
+              <!-- Resume Upload & Dropzone Box -->
+              <div style="background: white; border: 2px dashed rgba(37, 99, 235, 0.35); border-radius: var(--radius-xl); padding: 1.5rem; margin-bottom: 1.25rem; text-align: center;">
+                <p style="font-size: 2rem; margin-bottom: 0.5rem;">📄</p>
+                <h4 style="font-size: 1rem; font-weight: 700; color: var(--color-text-title); margin-bottom: 0.25rem;">Upload or Paste Your Resume</h4>
+                <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 1rem;">Our AI parser will automatically extract your skills, years of experience, and target roles.</p>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: center; margin-bottom: 1rem;">
+                  <button type="button" class="btn-outline btn-sm" onclick="document.getElementById('inputResumeFile').click()">
+                    📁 Choose Resume File (.pdf, .txt, .docx)
+                  </button>
+                  <input type="file" id="inputResumeFile" accept=".pdf,.txt,.docx" style="display: none;">
+                </div>
+
+                <textarea id="inputResumeText" rows="3" placeholder="Or paste your resume text here (e.g. Senior SDE with React, Node.js, TypeScript, PostgreSQL)..." style="width: 100%; padding: 0.6rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.82rem; margin-bottom: 0.75rem;"></textarea>
+
+                <button type="button" id="btnParseResume" class="btn-gradient btn-sm" style="font-size: 0.82rem; padding: 0.45rem 1.2rem;">
+                  ⚡ Auto-Extract Skills & Details from Resume
+                </button>
               </div>
 
               <!-- Profile Details Grid -->
@@ -397,6 +453,20 @@
                     <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Full Name</label>
                     <input type="text" id="inputFullName" placeholder="e.g. Vikas Pal" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
                   </div>
+                  <div>
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Email Address</label>
+                    <input type="email" id="inputEmail" placeholder="e.g. vikas@example.com" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Current / Target Role</label>
+                    <input type="text" id="inputCurrentJob" placeholder="e.g. Senior Fullstack Engineer" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
+                  </div>
+                  <div>
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Years of Experience</label>
+                    <input type="number" id="inputExpYears" min="0" max="40" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
+                  </div>
+                </div>
+              </div>
                   <div>
                     <label style="display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-title);">Email Address</label>
                     <input type="email" id="inputEmail" placeholder="e.g. vikas@example.com" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit; font-size: 0.85rem;">
@@ -599,7 +669,8 @@ Full-Stack Engineer with 5+ years experience architecting scalable distributed s
           </div>
         </div>
       </div>
-
+    </div>
+    <!-- /#userWorkspaceContainer -->
     </div>
   </section>
 
@@ -704,96 +775,65 @@ Full-Stack Engineer with 5+ years experience architecting scalable distributed s
     </div>
   </footer>
 
-  <!-- Onboarding Modal -->
-  <div id="onboardingModal" class="console-modal">
-    <div class="console-window" style="max-width: 520px;">
-      <div class="console-header">
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-          <span style="font-size: 1.2rem;">👋</span>
-          <h3 style="font-size: 1.1rem; font-weight: 700;">Welcome to Jobsapply</h3>
+  <!-- Auth Modal (Sign In & Sign Up) -->
+  <div id="authModal" class="console-modal">
+    <div class="console-window" style="max-width: 440px; background: white; color: var(--color-text-title); border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.3); border: 1px solid var(--color-surface-border);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-surface-border);">
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.15rem;">
+          <div class="brand-icon-box" style="width: 26px; height: 26px; font-size: 0.85rem;">⚡</div>
+          <span id="authModalTitle">Sign in to your Job Agent</span>
         </div>
+        <button type="button" onclick="window.authModule.closeAuthModal()" style="font-size: 1.25rem; color: var(--color-text-muted); cursor: pointer;">✕</button>
       </div>
-      <div class="console-body" style="padding: 1.5rem;">
-        <p style="color: var(--color-text-body); margin-bottom: 1.5rem;">Create your profile to start matching with jobs and auto-applying.</p>
-        
-        <form id="onboardingForm">
-          <div style="display: flex; flex-direction: column; gap: 1rem;">
-            <!-- Auth tabs -->
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-              <button type="button" class="auth-tab active" data-tab="email" style="flex:1; padding:0.5rem; border-radius:8px; background:var(--color-primary); color:white; font-weight:600;">Email/Password</button>
-              <button type="button" class="auth-tab" data-tab="google" style="flex:1; padding:0.5rem; border-radius:8px; background:white; color:var(--color-text-body); font-weight:600; border:1px solid var(--color-surface-border);">Google</button>
+
+      <!-- Tab Buttons -->
+      <div style="display: flex; border-bottom: 1px solid var(--color-surface-border); background: var(--color-surface-soft);">
+        <button type="button" id="authTabSignIn" class="step-nav-btn active" style="border-radius: 0; border: none; padding: 0.75rem; flex: 1;" onclick="window.authModule.switchAuthTab('signin')">
+          Sign In
+        </button>
+        <button type="button" id="authTabSignUp" class="step-nav-btn" style="border-radius: 0; border: none; padding: 0.75rem; flex: 1;" onclick="window.authModule.switchAuthTab('signup')">
+          Create Account
+        </button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <div id="authErrorMessage" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.6rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1rem;"></div>
+
+        <!-- Sign In Form -->
+        <form id="formSignIn">
+          <div id="authFormSignIn">
+            <div style="margin-bottom: 1rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem;">Email</label>
+              <input type="email" id="signInEmail" required placeholder="you@example.com" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit;">
             </div>
-            
-            <!-- Email/Password Form -->
-            <div id="authEmailForm">
-              <div>
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Full Name</label>
-                <input type="text" id="obFullName" name="fullName" required style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
-              </div>
-              <div>
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Email</label>
-                <input type="email" id="obEmail" name="email" required style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
-              </div>
-              <div>
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Password</label>
-                <input type="password" id="obPassword" name="password" required minlength="8" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
-              </div>
-              <button type="submit" class="btn-gradient" style="width:100%; margin-top:0.5rem;">Create Account & Continue</button>
+            <div style="margin-bottom: 1.25rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem;">Password</label>
+              <input type="password" id="signInPassword" required placeholder="••••••••" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit;">
             </div>
-            
-            <!-- Google Form -->
-            <div id="authGoogleForm" style="display:none;">
-              <p style="color:var(--color-text-muted); font-size:0.85rem; text-align:center; margin-bottom:1rem;">Click below to sign up with Google</p>
-              <button type="button" id="btnGoogleSignup" class="btn-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:0.5rem;">
-                <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                Continue with Google
-              </button>
+            <button type="submit" id="btnSubmitSignIn" class="btn-gradient" style="width: 100%; justify-content: center; padding: 0.7rem;">
+              Sign In
+            </button>
+          </div>
+        </form>
+
+        <!-- Sign Up Form -->
+        <form id="formSignUp">
+          <div id="authFormSignUp" style="display: none;">
+            <div style="margin-bottom: 0.85rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem;">Full Name</label>
+              <input type="text" id="signUpName" required placeholder="e.g. Rahul Sharma" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit;">
             </div>
-            
-            <!-- Profile Details (shown after auth) -->
-            <div id="profileDetailsForm" style="display:none;">
-              <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:1rem; color:var(--color-text-title);">Tell us about yourself</h4>
-              <div>
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Years of Experience</label>
-                <input type="number" id="obExperience" name="experienceYears" min="0" max="50" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
-              </div>
-              <div>
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Current Job Title</label>
-                <input type="text" id="obCurrentJob" name="currentJob" placeholder="e.g., Senior Backend Engineer" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
-              </div>
-              <div>
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Current Company</label>
-                <input type="text" id="obCurrentCompany" name="currentCompany" placeholder="e.g., Razorpay" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid var(--color-surface-border); font-family:inherit;">
-              </div>
-              <div>
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.3rem;">Preferred Locations</label>
-                <div id="obLocationChips" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.5rem;"></div>
-                <input type="hidden" id="obLocations" name="preferredLocations">
-              </div>
-              <button type="button" id="btnSaveProfile" class="btn-gradient" style="width:100%; margin-top:0.5rem;">Save Profile & Continue</button>
+            <div style="margin-bottom: 0.85rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem;">Email</label>
+              <input type="email" id="signUpEmail" required placeholder="you@example.com" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit;">
             </div>
-            
-            <!-- Resume Upload (shown after profile) -->
-            <div id="resumeUploadForm" style="display:none;">
-              <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:1rem; color:var(--color-text-title);">Upload Your Resume</h4>
-              <div style="border:2px dashed var(--color-surface-border); border-radius:12px; padding:2rem; text-align:center; transition:all 0.2s;" id="dropZone">
-                <p style="font-size:1.5rem; margin-bottom:0.5rem;">📄</p>
-                <p style="font-weight:600; color:var(--color-text-title);">Drag & drop your resume (PDF/DOCX)</p>
-                <p style="font-size:0.8rem; color:var(--color-text-muted);">or click to browse</p>
-                <input type="file" id="obResumeFile" name="resume" accept=".pdf,.docx" style="display:none;">
-              </div>
-              <p id="resumeFileName" style="font-size:0.8rem; color:var(--color-success); text-align:center; display:none;"></p>
-              <button type="button" id="btnUploadResume" class="btn-gradient" style="width:100%; margin-top:1rem; display:none;">Upload & Complete</button>
-              <button type="button" id="btnSkipResume" class="btn-outline btn-sm" style="width:100%; margin-top:0.5rem; display:none;">Skip for now</button>
+            <div style="margin-bottom: 1.25rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem;">Password</label>
+              <input type="password" id="signUpPassword" required minlength="6" placeholder="At least 6 characters" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--color-surface-border); font-family: inherit;">
             </div>
-            
-            <!-- Success -->
-            <div id="onboardingSuccess" style="display:none; text-align:center;">
-              <div style="font-size:3rem; margin-bottom:1rem;">🎉</div>
-              <h4 style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">You're all set!</h4>
-              <p style="color:var(--color-text-body); margin-bottom:1.5rem;">Your profile is ready. Let's find you some jobs.</p>
-              <button type="button" id="btnEnterApp" class="btn-gradient" style="width:100%;">Enter Dashboard</button>
-            </div>
+            <button type="submit" id="btnSubmitSignUp" class="btn-gradient" style="width: 100%; justify-content: center; padding: 0.7rem;">
+              Create Free Account & Start 🚀
+            </button>
           </div>
         </form>
       </div>

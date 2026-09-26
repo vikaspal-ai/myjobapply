@@ -1,6 +1,7 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
+import fastifyMultipart from '@fastify/multipart';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -12,6 +13,7 @@ import { documentRoutes } from './routes/documents.js';
 import { pipelineRoutes } from './routes/pipeline.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { outreachRoutes } from './routes/outreach.js';
+import { authRoutes } from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +29,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
+  // Enable multipart for file uploads
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  });
+
   // Healthcheck
   app.get('/api/health', async () => ({
     status: 'ok',
@@ -35,6 +42,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   }));
 
   // Register API Routes
+  await app.register(authRoutes);
   await app.register(candidateRoutes);
   await app.register(jobRoutes);
   await app.register(applicationRoutes);
