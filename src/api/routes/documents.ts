@@ -2,24 +2,37 @@ import type { FastifyInstance } from 'fastify';
 import { sql } from '../../db/index.js';
 import { supabase } from '../../db/index.js';
 import { createHash } from 'crypto';
+import { masterTemplateEngine } from '../../docs/master.js';
+import { resumeFileParser } from '../../docs/resume-file-parser.js';
 
 const db = sql!;
 
 export async function documentRoutes(app: FastifyInstance) {
-  // POST /api/resumes/upload - Upload resume PDF/DOCX to Supabase Storage
+  // POST /api/resumes/upload - Upload resume PDF/DOCX, parse it, and create Master Resume
   app.post<{
-    Body: { candidateId: string };
+    Body: { candidateId: string; fullName?: string; email?: string; location?: string; github?: string; linkedin?: string };
   }>('/api/resumes/upload', async (req, reply) => {
     const data = await req.file();
     if (!data) {
       return reply.code(400).send({ success: false, error: 'No file uploaded' });
     }
 
-    // Get candidateId from fields
+    // Get candidateId and optional contact info from fields
     let candidateId: string | undefined;
-    if (data.fields && typeof data.fields === 'object' && 'candidateId' in data.fields) {
-      const field = (data.fields as Record<string, { value: string }>).candidateId;
-      candidateId = field?.value;
+    let fullName: string | undefined;
+    let email: string | undefined;
+    let location: string | undefined;
+    let github: string | undefined;
+    let linkedin: string | undefined;
+
+    if (data.fields && typeof data.fields === 'object') {
+      const fields = data.fields as Record<string, { value: string }>;
+      candidateId = fields.candidateId?.value;
+      fullName = fields.fullName?.value;
+      email = fields.email?.value;
+      location = fields.location?.value;
+      github = fields.github?.value;
+      linkedin = fields.linkedin?.value;
     }
     if (!candidateId) {
       return reply.code(400).send({ success: false, error: 'candidateId is required' });
@@ -37,7 +50,16 @@ export async function documentRoutes(app: FastifyInstance) {
       chunks.push(chunk);
     }
     const fileBuffer = Buffer.concat(chunks);
-    const fileHash = createHash('sha256').update(fileBuffer).digest('hex');
+
+    // Parse the resume file
+    let parsedFile;
+    try {
+      parsedFile = await resumeFileParser.parseFile(fileBuffer, data.mimetype);
+    } catch (err) {
+      return reply.code(400).send({ success: false, error: `Failed to parse resume: ${err instanceof Error ? err.message : 'Unknown error'}` });
+    }
+
+    const fileHash = parsedFile.fileHash;
 
     // Check if already uploaded (dedup by hash)
     const [existingArtifact] = await db`
@@ -75,45 +97,165 @@ export async function documentRoutes(app: FastifyInstance) {
       artifactId = artifact.id;
     }
 
-    // Create or get master resume container
-    let [resume] = await db`
-      SELECT id FROM docs.resumes WHERE candidate_id = ${candidateId} AND is_master = true
+    // Get candidate info for contact
+    const [candidate] = await db`
+      SELECT full_name, email FROM profile.candidate_profiles WHERE id = ${candidateId}
     `;
 
-    if (!resume) {
-      [resume] = await db`
-        INSERT INTO docs.resumes (candidate_id, title, is_master)
-        VALUES (${candidateId}, 'Master Resume', true)
-        RETURNING id
-      `;
-    }
+    const contact = {
+      fullName: fullName || candidate?.full_name || 'Candidate',
+      email: email || candidate?.email || 'email@example.com',
+      location: location || 'India',
+      github,
+      linkedin,
+    };
 
-    // Create resume version v1 (or next version)
-    const [lastVersion] = await db`
-      SELECT version_no FROM docs.resume_versions WHERE resume_id = ${resume.id} ORDER BY version_no DESC LIMIT 1
-    `;
-    const nextVersion = (lastVersion?.version_no ?? 0) + 1;
+    // Convert parsed data to MasterResumeData format
+    const masterData = resumeFileParser.toMasterResumeData(parsedFile.parsed, contact);
 
-    const [version] = await db`
-      INSERT INTO docs.resume_versions (resume_id, version_no, content_hash, template_name, artifact_id, plan)
-      VALUES (${resume.id}, ${nextVersion}, ${fileHash}, 'uploaded', ${artifactId}, ${'{}'})
-      RETURNING id
-    `;
+    // Create Master Resume using the template engine (stores JSON artifact + LaTeX plan)
+    const master = await masterTemplateEngine.createMasterResume(candidateId, 'Master Resume', masterData);
+
+    // Also save the raw parsed text as an artifact for reference
+    const textArtifact = await masterTemplateEngine.saveArtifact(
+      parsedFile.rawText,
+      'text/plain',
+      'artifacts/resumes/raw'
+    );
 
     return reply.code(201).send({
       success: true,
       data: {
         artifactId,
-        resumeId: resume.id,
-        versionId: version.id,
-        versionNo: nextVersion,
+        resumeId: master.resumeId,
+        versionId: master.versionId,
+        versionNo: 1,
         storagePath,
         fileHash,
+        parsed: {
+          contact: parsedFile.parsed.contact,
+          summary: parsedFile.parsed.summary,
+          experience: parsedFile.parsed.experience,
+          projects: parsedFile.parsed.projects,
+          education: parsedFile.parsed.education,
+          skills: parsedFile.parsed.skills,
+          experienceYears: parsedFile.parsed.experienceYears,
+          suggestedTitle: parsedFile.parsed.suggestedTitle,
+          atsScore: parsedFile.parsed.atsScore,
+          extractedSections: parsedFile.parsed.extractedSections,
+        },
+        rawText: parsedFile.rawText,
+        textArtifactId: textArtifact.id,
       },
     });
   });
 
-  // GET /api/resumes - List resumes for a candidate
+  // POST /api/resumes/parse-file - Parse uploaded PDF/DOCX file directly into structured data
+  app.post('/api/resumes/parse-file', async (req, reply) => {
+    const data = await req.file();
+    if (!data) {
+      return reply.code(400).send({ success: false, error: 'No file uploaded' });
+    }
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+    ];
+    if (!allowedTypes.includes(data.mimetype)) {
+      return reply.code(400).send({ success: false, error: 'Only PDF, DOCX, and TXT files are allowed' });
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) {
+      chunks.push(chunk);
+    }
+    const fileBuffer = Buffer.concat(chunks);
+
+    try {
+      let parsedFile;
+      if (data.mimetype === 'text/plain') {
+        const rawText = fileBuffer.toString('utf-8');
+        const { parseResume } = await import('../../docs/resume-parser.js');
+        const parsed = parseResume(rawText);
+        parsedFile = {
+          rawText,
+          parsed,
+          fileHash: createHash('sha256').update(fileBuffer).digest('hex'),
+          fileType: 'pdf' as const,
+        };
+      } else {
+        parsedFile = await resumeFileParser.parseFile(fileBuffer, data.mimetype);
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          rawText: parsedFile.rawText,
+          parsed: parsedFile.parsed,
+          fileHash: parsedFile.fileHash,
+        },
+      });
+    } catch (err) {
+      return reply.code(400).send({
+        success: false,
+        error: `Failed to parse file: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      });
+    }
+  });
+
+  // GET /api/resumes/parsed/:candidateId - Get parsed resume data for a candidate
+  app.get<{ Params: { candidateId: string } }>('/api/resumes/parsed/:candidateId', async (req, reply) => {
+    const [resume] = await db`
+      SELECT rv.*, r.candidate_id, a.storage_path
+      FROM docs.resume_versions rv
+      JOIN docs.resumes r ON rv.resume_id = r.id
+      LEFT JOIN docs.artifacts a ON rv.artifact_id = a.id
+      WHERE r.candidate_id = ${req.params.candidateId} AND r.is_master = true
+      ORDER BY rv.version_no DESC
+      LIMIT 1
+    `;
+
+    if (!resume) {
+      return reply.code(404).send({ success: false, error: 'No master resume found for candidate' });
+    }
+
+    // If the artifact is JSON, fetch and parse it
+    if (resume.storage_path && resume.storage_path.endsWith('.json')) {
+      const { data: artifactData, error } = await supabase.storage
+        .from('artifacts')
+        .download(resume.storage_path);
+      
+      if (!error && artifactData) {
+        const text = await artifactData.text();
+        try {
+          const masterData = JSON.parse(text);
+          return reply.send({
+            success: true,
+            data: {
+              ...masterData,
+              resumeVersionId: resume.id,
+              versionNo: resume.version_no,
+              templateName: resume.template_name,
+            },
+          });
+        } catch {
+          // Fall through to basic response
+        }
+      }
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        resumeVersionId: resume.id,
+        versionNo: resume.version_no,
+        templateName: resume.template_name,
+        plan: resume.plan,
+      },
+    });
+  });
+
   // GET /api/resumes - List resumes for a candidate
   app.get<{
     Querystring: {

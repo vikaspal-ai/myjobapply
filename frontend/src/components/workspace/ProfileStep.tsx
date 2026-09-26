@@ -22,29 +22,31 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [currentJob, setCurrentJob] = useState('Full Stack Engineer');
-  const [experienceYears, setExperienceYears] = useState<number>(4);
+  const [currentJob, setCurrentJob] = useState('');
+  const [experienceYears, setExperienceYears] = useState<number>(0);
   const [preferredLocations, setPreferredLocations] = useState<string[]>(['Mumbai', 'Pune', 'Bengaluru', 'Remote']);
   const [resumeText, setResumeText] = useState('');
-  const [skills, setSkills] = useState<string[]>(['Node.js', 'React', 'TypeScript', 'PostgreSQL', 'Fastify']);
+  const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
-  const [atsScore, setAtsScore] = useState<number>(92);
+  const [atsScore, setAtsScore] = useState<number>(0);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Initialize from context profile or user
   useEffect(() => {
     if (candidateProfile) {
-      setFullName(candidateProfile.fullName || '');
-      setEmail(candidateProfile.email || '');
-      setCurrentJob(candidateProfile.currentJob || 'Full Stack Engineer');
-      setExperienceYears(candidateProfile.experienceYears ?? 4);
+      if (candidateProfile.fullName) setFullName(candidateProfile.fullName);
+      if (candidateProfile.email) setEmail(candidateProfile.email);
+      if (candidateProfile.currentJob) setCurrentJob(candidateProfile.currentJob);
+      if (candidateProfile.experienceYears !== undefined && candidateProfile.experienceYears !== null) {
+        setExperienceYears(candidateProfile.experienceYears);
+      }
       if (candidateProfile.preferredLocations && candidateProfile.preferredLocations.length > 0) {
         setPreferredLocations(candidateProfile.preferredLocations);
       }
     } else if (user) {
-      setFullName(user.fullName || '');
-      setEmail(user.email || '');
+      if (user.fullName) setFullName(user.fullName);
+      if (user.email) setEmail(user.email);
     }
   }, [candidateProfile, user]);
 
@@ -58,10 +60,11 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
         if (res.data && res.data.length > 0) {
           const extractedSkills = res.data
             .filter((f) => f.category === 'SKILL' || f.category === 'PROJECT')
-            .map((f) => f.statement || f.factKey || '');
+            .map((f) => f.statement || f.factKey || '')
+            .filter(Boolean);
           if (extractedSkills.length > 0) {
             setSkills(extractedSkills);
-            setAtsScore(Math.min(98, 82 + Math.floor(extractedSkills.length * 1.8)));
+            setAtsScore(Math.min(98, 70 + Math.floor(extractedSkills.length * 2)));
           }
         }
       } catch (err) {
@@ -84,6 +87,45 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
     }
   };
 
+  interface ParsedResumeData {
+    contact?: {
+      fullName?: string;
+      email?: string;
+      phone?: string;
+      location?: string;
+      linkedin?: string;
+      github?: string;
+      portfolio?: string;
+    };
+    summary?: string;
+    skills?: string[];
+    experienceYears?: number;
+    suggestedTitle?: string;
+    atsScore?: number;
+  }
+
+  const applyParsedData = (data: ParsedResumeData, rawText?: string) => {
+    if (rawText) setResumeText(rawText);
+    if (data.skills && Array.isArray(data.skills)) {
+      setSkills(data.skills);
+    }
+    if (data.experienceYears !== undefined) {
+      setExperienceYears(data.experienceYears);
+    }
+    if (data.suggestedTitle) {
+      setCurrentJob(data.suggestedTitle);
+    }
+    if (data.atsScore !== undefined) {
+      setAtsScore(data.atsScore);
+    }
+    if (data.contact?.fullName && (!fullName || fullName === 'Candidate')) {
+      setFullName(data.contact.fullName);
+    }
+    if (data.contact?.email && !email) {
+      setEmail(data.contact.email);
+    }
+  };
+
   const handleParseResume = async () => {
     if (!resumeText || resumeText.trim().length < 10) {
       alert('Please paste or upload your resume text first.');
@@ -92,7 +134,7 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
 
     setIsExtracting(true);
     try {
-      const res = await api<{ skills: string[]; experienceYears: number; suggestedTitle: string; atsScore: number }>(
+      const res = await api<ParsedResumeData>(
         '/api/candidates/parse-resume',
         {
           method: 'POST',
@@ -104,19 +146,8 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
       );
 
       if (res.data) {
-        if (res.data.skills && res.data.skills.length > 0) {
-          setSkills(res.data.skills);
-        }
-        if (res.data.experienceYears) {
-          setExperienceYears(res.data.experienceYears);
-        }
-        if (res.data.suggestedTitle) {
-          setCurrentJob(res.data.suggestedTitle);
-        }
-        if (res.data.atsScore) {
-          setAtsScore(res.data.atsScore);
-        }
-        alert(`Extracted ${res.data.skills?.length || 0} technical skills with ATS score ${res.data.atsScore || 92}/100!`);
+        applyParsedData(res.data);
+        alert(`Extracted ${res.data.skills?.length || 0} technical skills with ATS score ${res.data.atsScore || 0}/100!`);
       }
     } catch (err: any) {
       console.error('Failed to parse resume:', err);
@@ -126,40 +157,71 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        setResumeText(content);
-        // Automatically trigger extraction
-        setIsExtracting(true);
-        try {
-          const res = await api<{ skills: string[]; experienceYears: number; suggestedTitle: string; atsScore: number }>(
-            '/api/candidates/parse-resume',
-            {
-              method: 'POST',
-              body: JSON.stringify({ resumeText: content, candidateId: activeCandidateId }),
-            }
-          );
-          if (res.data) {
-            if (res.data.skills) setSkills(res.data.skills);
-            if (res.data.experienceYears) setExperienceYears(res.data.experienceYears);
-            if (res.data.suggestedTitle) setCurrentJob(res.data.suggestedTitle);
-            if (res.data.atsScore) setAtsScore(res.data.atsScore);
-          }
-          alert('Resume parsed successfully! Skills and profile populated.');
-        } catch {
-          alert('Resume text loaded. Click "Auto-Extract Skills & Details" to parse.');
-        } finally {
-          setIsExtracting(false);
+    setIsExtracting(true);
+    try {
+      const isBinary =
+        file.type === 'application/pdf' ||
+        file.name.toLowerCase().endsWith('.pdf') ||
+        file.name.toLowerCase().endsWith('.docx') ||
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+      if (isBinary) {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (activeCandidateId) {
+          formData.append('candidateId', activeCandidateId);
         }
+
+        const res = await fetch('/api/resumes/parse-file', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+
+        const result = await res.json();
+        if (result.data?.parsed) {
+          applyParsedData(result.data.parsed, result.data.rawText);
+          alert(`Successfully parsed ${file.name}! Extracted ${result.data.parsed.skills?.length || 0} skills.`);
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const content = event.target?.result as string;
+          if (content) {
+            setResumeText(content);
+            try {
+              const res = await api<ParsedResumeData>('/api/candidates/parse-resume', {
+                method: 'POST',
+                body: JSON.stringify({ resumeText: content, candidateId: activeCandidateId }),
+              });
+              if (res.data) {
+                applyParsedData(res.data, content);
+                alert(`Resume parsed successfully! Extracted ${res.data.skills?.length || 0} skills.`);
+              }
+            } catch {
+              alert('Resume text loaded. Click "Auto-Extract Skills & Details" to parse.');
+            }
+          }
+        };
+        reader.readAsText(file);
       }
-    };
-    reader.readAsText(file);
+    } catch (err: any) {
+      console.error('File parsing error:', err);
+      alert('Failed to parse file: ' + (err.message || 'Please check file format'));
+    } finally {
+      setIsExtracting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleAddSkill = async () => {
@@ -255,7 +317,7 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
             ATS Compatibility Score
           </span>
           <div className="ats-score-circle">
-            <span id="atsScoreValue">{atsScore}</span>
+            <span id="atsScoreValue">{atsScore > 0 ? atsScore : '--'}</span>
             <span className="ats-score-max">/100</span>
           </div>
           <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>Optimized for Indian Tech Roles</p>
@@ -455,15 +517,21 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
               </span>
             </div>
             <div id="candidateSkillsList" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
-              {skills.map((skill, idx) => (
-                <span
-                  key={idx}
-                  className="chip-btn active"
-                  style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                >
-                  {skill}
+              {skills.length > 0 ? (
+                skills.map((skill, idx) => (
+                  <span
+                    key={idx}
+                    className="chip-btn active"
+                    style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    {skill}
+                  </span>
+                ))
+              ) : (
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '0.2rem 0' }}>
+                  No skills extracted yet. Upload your resume (PDF/DOCX) or paste text to extract.
                 </span>
-              ))}
+              )}
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input

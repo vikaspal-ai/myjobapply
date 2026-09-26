@@ -396,6 +396,11 @@ export async function candidateRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: {
+        contact: parsed.contact,
+        summary: parsed.summary,
+        experience: parsed.experience,
+        projects: parsed.projects,
+        education: parsed.education,
         skills: parsed.skills,
         experienceYears: parsed.experienceYears,
         suggestedTitle: parsed.suggestedTitle,
