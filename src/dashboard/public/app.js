@@ -81,9 +81,65 @@ window.toggleFaq = function(btn) {
   }
 };
 
+// Sync stored candidate data for authenticated user
+async function syncStoredUserData(user) {
+  if (!user || !user.email) return;
+
+  try {
+    // 1. Direct email lookup for stored candidate profile
+    let candidate = null;
+    try {
+      const emailRes = await api(`/api/candidates/by-email/${encodeURIComponent(user.email)}`);
+      candidate = emailRes.data;
+    } catch {}
+
+    // 2. Fallback to list search
+    if (!candidate) {
+      const listRes = await api(`/api/candidates?email=${encodeURIComponent(user.email)}`);
+      if (listRes.data && listRes.data.length > 0) {
+        candidate = listRes.data[0];
+      }
+    }
+
+    if (candidate) {
+      // Stored user found: load stored profile, facts, ATS score, jobs, applications, and outreach
+      state.activeCandidateId = candidate.id;
+      state.candidateProfile = candidate;
+
+      const select = document.getElementById('candidateSelect');
+      if (select) select.value = candidate.id;
+
+      await onboarding.loadCandidateData(candidate.id);
+      await Promise.all([
+        jobsFeed.loadJobs(),
+        applyTracker.loadApplications(),
+        referrals.loadOutreach(),
+      ]);
+
+      // Direct user to their active opportunities
+      window.switchStep('jobs');
+    } else {
+      // First-time user: bring them to Onboarding Form in Step 1
+      state.activeCandidateId = null;
+      window.switchStep('profile');
+      const nameInput = document.getElementById('inputFullName');
+      const emailInput = document.getElementById('inputEmail');
+      if (nameInput) nameInput.value = user.fullName || '';
+      if (emailInput) emailInput.value = user.email || '';
+    }
+  } catch (err) {
+    console.error('Failed to sync stored user data:', err);
+  }
+}
+
 // Bootstrap application on DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
-  authMod.initAuth();
+  // Listen for login event to immediately sync user's stored data
+  on('auth:login', async (user) => {
+    await syncStoredUserData(user);
+  });
+
+  await authMod.initAuth();
   setupCandidateSelect();
   await loadCandidates();
   await onboarding.initOnboarding();
@@ -92,25 +148,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   await referrals.initReferrals();
   await consoleMod.initConsole();
 
-  // Listen for login event to sync user profile
-  on('auth:login', async (user) => {
-    // Check if user has an existing candidate profile
-    const res = await api('/api/candidates?includeTest=true');
-    const matching = (res.data || []).find(c => c.email === user.email);
-    if (matching) {
-      state.activeCandidateId = matching.id;
-      await onboarding.loadCandidateData(matching.id);
-      await jobsFeed.loadJobs();
-    } else {
-      // First time user: open onboarding form in Step 1
-      state.activeCandidateId = null;
-      window.switchStep('profile');
-      const nameInput = document.getElementById('inputFullName');
-      const emailInput = document.getElementById('inputEmail');
-      if (nameInput) nameInput.value = user.fullName || '';
-      if (emailInput) emailInput.value = user.email || '';
-    }
-  });
+  // If already authenticated from persistent session or OAuth redirect, sync immediately
+  if (state.currentUser) {
+    await syncStoredUserData(state.currentUser);
+  }
 });
 
 // Candidate selector handler (for admin / multi-profile switching)

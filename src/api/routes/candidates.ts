@@ -65,17 +65,18 @@ export async function candidateRoutes(app: FastifyInstance) {
     });
   });
 
-  // GET /api/candidates - List candidate profiles (demo users by default)
+  // GET /api/candidates - List candidate profiles (supports email filter)
   app.get<{
-    Querystring: { includeTest?: string };
+    Querystring: { includeTest?: string; email?: string };
   }>('/api/candidates', async (req, reply) => {
-    const { includeTest } = req.query;
-    const showAll = includeTest === 'true';
+    const { includeTest, email } = req.query;
+    const showAll = includeTest === 'true' || !!email;
 
     const candidates = await db`
-      SELECT id, full_name, email, preferred_locations, current_location, is_demo, created_at, updated_at
+      SELECT id, full_name, email, preferred_locations, current_location, is_demo,
+             experience_years, current_job, current_company, auth_user_id, created_at, updated_at
       FROM profile.candidate_profiles
-      WHERE ${showAll ? db`true` : db`is_demo = true`}
+      WHERE ${email ? db`email = ${email}` : (showAll ? db`true` : db`is_demo = true`)}
       ORDER BY created_at DESC
     `;
 
@@ -87,6 +88,10 @@ export async function candidateRoutes(app: FastifyInstance) {
         email: c.email,
         preferredLocations: c.preferred_locations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote'],
         currentLocation: c.current_location || 'India',
+        experienceYears: c.experience_years,
+        currentJob: c.current_job,
+        currentCompany: c.current_company,
+        authUserId: c.auth_user_id,
         isDemo: c.is_demo,
         createdAt: c.created_at,
         updatedAt: c.updated_at,
@@ -94,10 +99,46 @@ export async function candidateRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /api/candidates/by-email/:email - Lookup profile by email
+  app.get<{ Params: { email: string } }>('/api/candidates/by-email/:email', async (req, reply) => {
+    const email = decodeURIComponent(req.params.email);
+    const [candidate] = await db`
+      SELECT id, full_name, email, preferred_locations, current_location, is_demo,
+             experience_years, current_job, current_company, auth_user_id, created_at, updated_at
+      FROM profile.candidate_profiles
+      WHERE email = ${email}
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `;
+
+    if (!candidate) {
+      return reply.code(404).send({ success: false, error: 'Candidate profile not found' });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        id: candidate.id,
+        fullName: candidate.full_name,
+        email: candidate.email,
+        preferredLocations: candidate.preferred_locations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote'],
+        currentLocation: candidate.current_location || 'India',
+        experienceYears: candidate.experience_years,
+        currentJob: candidate.current_job,
+        currentCompany: candidate.current_company,
+        authUserId: candidate.auth_user_id,
+        isDemo: candidate.is_demo,
+        createdAt: candidate.created_at,
+        updatedAt: candidate.updated_at,
+      },
+    });
+  });
+
   // GET /api/candidates/:id - Get specific candidate profile
   app.get<{ Params: { id: string } }>('/api/candidates/:id', async (req, reply) => {
     const [candidate] = await db`
-      SELECT id, full_name, email, preferred_locations, current_location, is_demo, created_at, updated_at
+      SELECT id, full_name, email, preferred_locations, current_location, is_demo,
+             experience_years, current_job, current_company, auth_user_id, created_at, updated_at
       FROM profile.candidate_profiles
       WHERE id = ${req.params.id}
     `;
@@ -114,6 +155,10 @@ export async function candidateRoutes(app: FastifyInstance) {
         email: candidate.email,
         preferredLocations: candidate.preferred_locations || ['Mumbai', 'Pune', 'Bengaluru', 'Remote'],
         currentLocation: candidate.current_location || 'India',
+        experienceYears: candidate.experience_years,
+        currentJob: candidate.current_job,
+        currentCompany: candidate.current_company,
+        authUserId: candidate.auth_user_id,
         isDemo: candidate.is_demo,
         createdAt: candidate.created_at,
         updatedAt: candidate.updated_at,

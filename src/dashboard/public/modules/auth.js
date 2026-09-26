@@ -7,9 +7,93 @@ import { state, emit } from './state.js';
 const STORAGE_KEY_TOKEN = 'myjobapply_token';
 const STORAGE_KEY_USER = 'myjobapply_user';
 
-export function initAuth() {
+export async function initAuth() {
   setupAuthModalListeners();
+  await handleOAuthRedirect();
   checkExistingSession();
+}
+
+export async function handleOAuthRedirect() {
+  // 1. Check for query parameter '?code=...' (Supabase PKCE code exchange)
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+
+  if (code) {
+    try {
+      const res = await api('/api/auth/callback', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      });
+
+      if (res.data?.user) {
+        const user = res.data.user;
+        const token = res.data.session?.access_token || 'oauth-session';
+        setSession(token, {
+          id: user.id,
+          email: user.email,
+          fullName: user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0],
+        });
+        window.history.replaceState({}, document.title, '/');
+        return true;
+      }
+    } catch (err) {
+      console.error('OAuth code exchange failed:', err);
+      showAuthError('Failed to complete Google Sign In: ' + err.message);
+      openAuthModal();
+    }
+  }
+
+  // 2. Check for hash fragment '#access_token=...' (Implicit flow)
+  if (window.location.hash && window.location.hash.includes('access_token=')) {
+    try {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      if (accessToken) {
+        const res = await api('/api/auth/me', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (res.data?.user) {
+          const user = res.data.user;
+          setSession(accessToken, {
+            id: user.id,
+            email: user.email,
+            fullName: user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0],
+          });
+          window.history.replaceState({}, document.title, '/');
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('OAuth token extraction failed:', err);
+    }
+  }
+
+  return false;
+}
+
+export async function signInWithGoogle() {
+  clearAuthErrors();
+  const btn = document.getElementById('btnGoogleAuth');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await api('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({
+        redirectTo: window.location.origin + '/auth/callback'
+      })
+    });
+
+    if (res.data?.url) {
+      window.location.href = res.data.url;
+    } else {
+      throw new Error('Google sign-in URL not available');
+    }
+  } catch (err) {
+    showAuthError(err.message || 'Failed to initiate Google sign-in');
+    if (btn) btn.disabled = false;
+  }
 }
 
 export function checkExistingSession() {
