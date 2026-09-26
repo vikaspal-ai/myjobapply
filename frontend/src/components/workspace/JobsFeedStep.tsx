@@ -18,16 +18,24 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
     setLoading(true);
     try {
       const candQuery = activeCandidateId ? `&candidateId=${activeCandidateId}` : '';
-      const res = await api<any[]>(`/api/jobs?limit=50${candQuery}`);
+      const res = await api<any[]>(`/api/jobs?limit=50&realOnly=true${candQuery}`);
       const rawJobs = res.data || [];
 
       const formatted: JobMatch[] = rawJobs.map((j) => {
-        let loc = 'India';
-        if (typeof j.location === 'object' && j.location) {
-          loc = [j.location.city, j.location.state].filter(Boolean).join(', ') || j.location.workplaceType || 'India';
-        } else if (typeof j.location === 'string') {
-          loc = j.location;
+        let loc = j.locationDisplay;
+        if (!loc || loc === 'Location Not Specified') {
+          if (typeof j.location === 'object' && j.location) {
+            loc = [j.location.city, j.location.state].filter(Boolean).join(', ') || j.location.workplaceType || 'India';
+          } else if (typeof j.location === 'string') {
+            loc = j.location;
+          } else {
+            loc = 'India';
+          }
         }
+
+        const sal = typeof j.salary === 'object' && j.salary !== null
+          ? (j.salary.display || 'Competitive')
+          : (j.salary || 'Competitive');
 
         return {
           id: j.id,
@@ -38,7 +46,7 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
           locationDisplay: loc,
           fitScore: j.fitScore || j.fit_score || Math.floor(Math.random() * 15) + 82,
           atsScore: j.atsScore || 92,
-          salary: j.salary || 'Competitive',
+          salary: sal,
           applyUrl: j.applyUrl || j.apply_url || '#',
           atsType: j.atsType || j.ats_type || 'generic',
           isSynthetic: j.isSynthetic || false,

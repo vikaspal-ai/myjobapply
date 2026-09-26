@@ -36,7 +36,13 @@ export async function jobRoutes(app: FastifyInstance) {
       : db`AND (j.location->>'city' ILIKE ${'%' + locLower + '%'} OR j.location::text ILIKE ${'%' + locLower + '%'} OR j.description ILIKE ${'%' + locLower + '%'})`;
 
     const realFilter = realOnly === 'true'
-      ? db`AND (j.is_synthetic = false OR j.is_synthetic IS NULL)`
+      ? db`AND (j.is_synthetic = false OR j.is_synthetic IS NULL) 
+           AND c.name NOT ILIKE '%TEST%' 
+           AND c.name NOT ILIKE '%AUTOFILL%' 
+           AND c.name NOT ILIKE '%CHAOS%' 
+           AND c.name NOT ILIKE '%Nova Systems%' 
+           AND c.name NOT ILIKE '%FinTech Global%' 
+           AND c.name NOT ILIKE '%Pipeline Corp%'`
       : db``;
 
     let rows;
