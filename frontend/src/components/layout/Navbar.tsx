@@ -12,63 +12,66 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenConsole }) => {
     <header className="header-wrapper">
       <nav className="floating-nav">
         {/* Brand */}
-        <a href="/" className="brand-logo" style={{ textDecoration: 'none' }}>
+        <a href="/" className="nav-brand">
           <div className="brand-icon-box">⚡</div>
-          <span className="brand-name">
-            Jobsapply<span className="brand-dot">.</span>
-          </span>
-          <span className="brand-badge-in">🇮🇳 INDIA</span>
+          <span>jobsapply</span>
         </a>
 
         {/* Center Links */}
-        <div className="nav-center-links">
-          <a href="#how-it-works" className="nav-link">How it Works</a>
-          <a href="#testimonials" className="nav-link">Testimonials</a>
+        <div className="nav-links">
+          <a href="#features" className="nav-link">Capabilities</a>
+          <a href="#integrations" className="nav-link">Integrations</a>
+          <a href="#how-it-works" className="nav-link">How It Works</a>
+          <a href="#workspace" className="nav-link">Live Agent</a>
+          <a href="#testimonials" className="nav-link">Reviews</a>
           <a href="#faq" className="nav-link">FAQ</a>
         </div>
 
         {/* Right Actions */}
         <div className="nav-actions">
           {isAuthenticated ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <button
-                type="button"
-                className="btn-outline btn-sm"
-                title="Open Engineering Operator Console"
-                onClick={onOpenConsole}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                <span>🛠️</span>
-                <span>Console</span>
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--color-surface-soft)', padding: '0.35rem 0.75rem', borderRadius: 'var(--radius-full)', border: '1px solid var(--color-surface-border)' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-text-title)' }}>
-                  👤 {user?.fullName || user?.email}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div className="candidate-pill">
+                <span className="pill-emoji">👤</span>
+                <span style={{ fontWeight: 700, color: 'var(--color-text-title)' }}>
+                  {user?.fullName || user?.email || 'User'}
                 </span>
               </div>
+
               <button
                 type="button"
                 className="btn-outline btn-sm"
                 onClick={logout}
+                title="Sign out of your account"
               >
                 Log Out
               </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+
               <button
                 type="button"
-                className="btn-ghost"
+                className="btn-outline btn-sm"
+                title="View Pipeline Engine & Metrics"
+                onClick={onOpenConsole}
+              >
+                <span style={{ fontSize: '0.85em', lineHeight: 1 }}>🛠️</span>{' '}
+                <span className="btn-label">Console</span>
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <button
+                type="button"
+                className="btn-outline btn-sm"
                 onClick={() => openAuthModal('signin')}
               >
                 Sign In
               </button>
               <button
                 type="button"
-                className="btn-gradient"
+                className="btn-gradient btn-sm"
                 onClick={() => openAuthModal('signup')}
               >
-                Start Free 🚀
+                Start free
               </button>
             </div>
           )}
