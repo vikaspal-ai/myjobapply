@@ -50,6 +50,7 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
   const [showPlugins, setShowPlugins]     = useState(false);
   const [activePlugins, setActivePlugins] = useState<Set<string>>(new Set(SOURCE_PLUGINS.filter(p => p.default).map(p => p.key)));
   const [syncQuery, setSyncQuery]         = useState('');
+  const [localSearch, setLocalSearch]     = useState('');
 
   // LinkedIn Plugin State
   const [linkedinConnected, setLinkedinConnected] = useState(false);
@@ -164,8 +165,13 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
     setTimeout(() => setSyncStatus(null), 6000);
   };
 
-  /* ---------- Location client-side filter ---------- */
+  /* ---------- Location & Search client-side filter ---------- */
   const filteredJobs = jobs.filter(j => {
+    if (localSearch.trim()) {
+      const q = localSearch.toLowerCase();
+      const match = (j.title || '').toLowerCase().includes(q) || (j.companyName || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
     if (locationFilter === 'ALL') return true;
     const loc = (j.locationDisplay || '').toLowerCase();
     if (locationFilter === 'REMOTE')    return loc.includes('remote');
@@ -220,7 +226,24 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder={`Search e.g. "Node.js"`}
+            value={syncQuery}
+            onChange={e => setSyncQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLiveSync()}
+            style={{
+              width: '200px',
+              padding: '0.45rem 0.75rem',
+              border: '1px solid var(--color-surface-border)',
+              borderRadius: '8px',
+              fontFamily: 'inherit',
+              fontSize: '0.85rem',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-title)',
+            }}
+          />
           <button
             type="button"
             className="btn-outline btn-sm"
@@ -234,7 +257,7 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
             disabled={syncing}
             onClick={handleLiveSync}
           >
-            {syncing ? '⏳ Syncing…' : '⚡ Fetch Live Jobs'}
+            {syncing ? '⏳ Syncing…' : '⚡ Search Jobs'}
           </button>
         </div>
       </div>
@@ -251,26 +274,6 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
           <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-title)' }}>
             Job Source Plugins — toggle which APIs to query
           </p>
-
-          {/* Search query input */}
-          <div style={{ marginBottom: '0.75rem' }}>
-            <input
-              type="text"
-              placeholder={`Search query (default: "${candidateProfile?.currentJob || 'Software Engineer'}")`}
-              value={syncQuery}
-              onChange={e => setSyncQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.5rem 0.75rem',
-                border: '1px solid var(--color-surface-border)',
-                borderRadius: '8px',
-                fontFamily: 'inherit',
-                fontSize: '0.85rem',
-                background: 'var(--color-surface)',
-                color: 'var(--color-text-title)',
-              }}
-            />
-          </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
             {SOURCE_PLUGINS.map(plugin => {
@@ -409,8 +412,23 @@ export const JobsFeedStep: React.FC<JobsFeedStepProps> = ({ onApplyTriggered }) 
 
       {/* ── Controls Row ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        {/* Location chips */}
-        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+        {/* Location chips & local search */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Filter by title/company..."
+            value={localSearch}
+            onChange={e => setLocalSearch(e.target.value)}
+            style={{
+              padding: '0.4rem 0.6rem',
+              border: '1px solid var(--color-surface-border)',
+              borderRadius: '999px',
+              fontSize: '0.78rem',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-title)',
+              minWidth: '180px'
+            }}
+          />
           {LOCATION_FILTERS.map(btn => (
             <button
               key={btn.key}

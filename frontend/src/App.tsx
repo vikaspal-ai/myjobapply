@@ -7,16 +7,27 @@ import { WorkspaceView } from './components/workspace/WorkspaceView.js';
 import { AuthModal } from './components/auth/AuthModal.js';
 import { OperatorConsoleModal } from './components/console/OperatorConsoleModal.js';
 
+export type StepKey = 'profile' | 'jobs' | 'resume' | 'apply' | 'referrals';
+
 const MainContent: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [activeStep, setActiveStep] = useState<StepKey>('profile');
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Navbar onOpenConsole={() => setIsConsoleOpen(true)} />
+      <Navbar 
+        onOpenConsole={() => setIsConsoleOpen(true)} 
+        activeStep={activeStep}
+        setActiveStep={setActiveStep}
+      />
       
       <main style={{ flex: 1 }}>
-        {isAuthenticated ? <WorkspaceView /> : <LandingView />}
+        {isAuthenticated ? (
+          <WorkspaceView activeStep={activeStep} setActiveStep={setActiveStep} />
+        ) : (
+          <LandingView />
+        )}
       </main>
 
       <Footer />
