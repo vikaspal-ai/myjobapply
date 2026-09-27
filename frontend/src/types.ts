@@ -37,8 +37,10 @@ export interface JobMatch {
   companyName: string;
   companyDomain?: string;
   locationDisplay: string;
-  fitScore: number;
-  atsScore: number;
+  /** Real match score from jobs.job_matches, or null when the job has not been scored yet. */
+  fitScore: number | null;
+  /** ATS score is only known when a tailored document has been scored; never fabricated. */
+  atsScore?: number | null;
   salary?: string | null;
   applyUrl: string;
   atsType?: string;

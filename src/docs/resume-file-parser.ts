@@ -103,7 +103,7 @@ export class ResumeFileParser {
       description: proj.description || '',
       techStack: proj.techStack || [],
       bullets: (proj.bullets || []).map(text => ({ text, factId: '' })),
-      link: 'link' in proj ? proj.link : undefined,
+      link: ('link' in proj ? proj.link : undefined) as string | undefined,
     }));
 
     // Build education from additional data or parsed data
@@ -112,7 +112,7 @@ export class ResumeFileParser {
       institution: edu.institution,
       degree: edu.degree,
       graduationDate: edu.graduationDate,
-      location: 'location' in edu ? edu.location : undefined,
+      location: ('location' in edu ? edu.location : undefined) as string | undefined,
     }));
 
     return {

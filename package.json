@@ -19,6 +19,8 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "demo": "tsx scripts/demo.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "db:purge-fixtures": "tsx src/scripts/purge-synthetic-jobs.ts",
+    "db:purge-test-data": "tsx src/scripts/purge-test-data.ts",
     "db:clean-test": "tsx -e \"import { sql } from './src/db/index.js'; await sql\\`DELETE FROM profile.candidate_profiles WHERE email NOT LIKE '%@demo.jobsapply'\\`; console.log('Cleaned test candidates'); await sql.end();\"",
     "server": "tsx src/api/server.ts"
   },

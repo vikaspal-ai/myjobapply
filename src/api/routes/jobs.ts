@@ -41,13 +41,30 @@ export async function jobRoutes(app: FastifyInstance) {
       : db`AND (j.location->>'city' ILIKE ${'%' + locLower + '%'} OR j.location::text ILIKE ${'%' + locLower + '%'} OR j.description ILIKE ${'%' + locLower + '%'})`;
 
     const realFilter = realOnly === 'true'
-      ? db`AND (j.is_synthetic = false OR j.is_synthetic IS NULL) 
-           AND c.name NOT ILIKE '%TEST%' 
-           AND c.name NOT ILIKE '%AUTOFILL%' 
-           AND c.name NOT ILIKE '%CHAOS%' 
-           AND c.name NOT ILIKE '%Nova Systems%' 
-           AND c.name NOT ILIKE '%FinTech Global%' 
-           AND c.name NOT ILIKE '%Pipeline Corp%'`
+      ? db`AND (j.is_synthetic = false OR j.is_synthetic IS NULL)
+           AND c.name !~ '[0-9]{13}[[:space:]]*$'
+           AND c.name NOT ILIKE 'Test Company%'
+           AND c.name NOT ILIKE '%TEST%'
+           AND c.name NOT ILIKE '%AUTOFILL%'
+           AND c.name NOT ILIKE '%CHAOS%'
+           AND c.name NOT ILIKE '%Nova Systems%'
+           AND c.name NOT ILIKE '%FinTech Global%'
+           AND c.name NOT ILIKE '%Pipeline Corp%'
+           AND c.name NOT ILIKE '%Company WF%'
+           AND c.name NOT ILIKE '%Planner Target%'
+           AND c.name NOT ILIKE '%Polite Corp%'
+           AND c.name NOT ILIKE '%Aether Labs%'
+           AND c.name NOT ILIKE '%Sched Company%'
+           AND j.apply_url NOT ILIKE '%companywf.com%'
+           AND j.apply_url NOT ILIKE '%plannertarget.com%'
+           AND j.apply_url NOT ILIKE '%fintechglobal.com%'
+           AND j.apply_url NOT ILIKE '%acme.com%'
+           AND j.apply_url NOT ILIKE '%chaoscorp.com%'
+           AND j.apply_url NOT ILIKE '%novasystems.com%'
+           AND j.apply_url NOT ILIKE '%autofilltech.com%'
+           AND j.apply_url NOT ILIKE '%tailortest.com%'
+           AND j.apply_url NOT ILIKE '%matchtest.com%'
+           AND j.apply_url NOT ILIKE '%reqtest.com%'`
       : db``;
 
     let rows;
@@ -295,7 +312,16 @@ export async function jobRoutes(app: FastifyInstance) {
     if (provider === 'serpapi' || provider === 'all') {
       const gRes = await searchGoogleJobs({ query, location, limit });
       if (gRes.success && gRes.jobs.length > 0) {
-        externalJobs.push(...gRes.jobs.map(j => ({ ...j, source: 'google_jobs_serpapi' })));
+        externalJobs.push(...gRes.jobs.map(j => ({
+          title: j.title,
+          company_name: j.company_name,
+          location: j.location,
+          description: j.description,
+          apply_url: j.apply_url,
+          salary: j.salary,
+          workplaceType: (j.workplaceType ?? 'onsite') as 'remote' | 'hybrid' | 'onsite',
+          source: 'google_jobs_serpapi',
+        })));
       }
     }
 
@@ -303,7 +329,16 @@ export async function jobRoutes(app: FastifyInstance) {
     if (provider === 'rapidapi' || provider === 'all') {
       const rRes = await searchRapidJobs({ query, location, limit });
       if (rRes.success && rRes.jobs.length > 0) {
-        externalJobs.push(...rRes.jobs.map(j => ({ ...j, source: 'jsearch_rapidapi' })));
+        externalJobs.push(...rRes.jobs.map(j => ({
+          title: j.title,
+          company_name: j.company_name,
+          location: j.location,
+          description: j.description,
+          apply_url: j.apply_url,
+          salary: j.salary,
+          workplaceType: j.workplaceType,
+          source: 'jsearch_rapidapi',
+        })));
       }
     }
 
@@ -320,6 +355,7 @@ export async function jobRoutes(app: FastifyInstance) {
 
     // 3. Process each job into canonical storage
     let insertedCount = 0;
+    const failures: Array<{ title: string; company: string; error: string }> = [];
     for (const item of externalJobs) {
       try {
         let [comp] = await db`SELECT id FROM discovery.companies WHERE name ILIKE ${item.company_name} LIMIT 1`;
@@ -331,10 +367,34 @@ export async function jobRoutes(app: FastifyInstance) {
           `;
         }
 
+        // Every canonical job needs a source link, and jobs.job_source_links.source_id
+        // is NOT NULL — reuse (or create) an aggregator source row for this company.
+        const aggregatorBaseUrl = item.source === 'jsearch_rapidapi'
+          ? 'https://jsearch.p.rapidapi.com/search'
+          : 'https://serpapi.com/search.json?engine=google_jobs';
+        let [aggSource] = await db`
+          SELECT id FROM ingest.job_sources
+          WHERE company_id = ${comp.id} AND base_url = ${aggregatorBaseUrl}
+          LIMIT 1
+        `;
+        if (!aggSource) {
+          [aggSource] = await db`
+            INSERT INTO ingest.job_sources (company_id, connector, base_url, schedule, compliance_status)
+            VALUES (
+              ${comp.id},
+              'generic',
+              ${aggregatorBaseUrl},
+              interval '12 hours',
+              ${db.json({ allowed: true, aggregator: item.source })}
+            )
+            RETURNING id
+          `;
+        }
+
         const externalId = `ext-${item.source}-${comp.id}-${item.title.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
         const rawPosting = {
-          sourceId: undefined,
-          companyId: comp.id,
+          sourceId: aggSource.id as string,
+          companyId: comp.id as string,
           externalId,
           sourceUrl: item.apply_url,
           title: item.title,
@@ -358,7 +418,7 @@ export async function jobRoutes(app: FastifyInstance) {
           UPDATE jobs.jobs
           SET is_synthetic = false,
               status = 'ACTIVE',
-              salary = ${item.salary || 'Competitive'},
+              salary = ${item.salary ?? null},
               apply_url = ${item.apply_url},
               source_attribution = ${db.json({ source: item.source, verified: true })},
               location = ${db.json({
@@ -378,7 +438,9 @@ export async function jobRoutes(app: FastifyInstance) {
         insertedCount++;
         results.push({ id: canonical.canonicalJobId, title: item.title, company: item.company_name });
       } catch (err: any) {
-        // continue with next item
+        // Record and continue with the next item instead of failing silently.
+        failures.push({ title: item.title, company: item.company_name, error: err?.message || String(err) });
+        req.log.warn({ err, title: item.title, company: item.company_name }, 'external job sync failed for item');
       }
     }
 
@@ -387,6 +449,8 @@ export async function jobRoutes(app: FastifyInstance) {
       data: {
         syncedCount: insertedCount,
         jobs: results,
+        failedCount: failures.length,
+        failures,
       },
     });
   });

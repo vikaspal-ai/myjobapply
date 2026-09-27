@@ -36,61 +36,85 @@ export async function searchRapidJobs(params: {
     };
   }
 
-  const query = `${params.query} in ${params.location || 'India'}`;
-  const url = new URL('https://jsearch.p.rapidapi.com/search');
-  url.searchParams.set('query', query);
-  url.searchParams.set('page', '1');
-  url.searchParams.set('num_pages', '1');
+  const queryStr = `${params.query} in ${params.location || 'India'}`;
+  const maxItems = params.limit || 15;
 
-  try {
-    const res = await fetch(url.toString(), {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
-      },
-    });
+  // Ordered list of RapidAPI endpoints to attempt — first subscribed one wins
+  const endpoints = [
+    {
+      host: 'jsearch.p.rapidapi.com',
+      url: `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(queryStr)}&page=1&num_pages=1`,
+      parse: (data: any) => (data.data || []).map((item: any) => {
+        if (!item.job_title || !item.employer_name || !item.job_apply_link) return null;
+        const locDisplay = [item.job_city, item.job_state, item.job_country].filter(Boolean).join(', ') || params.location || 'India';
+        let salaryDisplay: string | undefined;
+        if (item.job_min_salary && item.job_max_salary) {
+          const curr = item.job_salary_currency || 'INR';
+          const minK = Math.round(item.job_min_salary / 1000);
+          const maxK = Math.round(item.job_max_salary / 1000);
+          salaryDisplay = `${curr} ${minK}k–${maxK}k ${item.job_salary_period || 'PA'}`;
+        }
+        return {
+          title: item.job_title,
+          company_name: item.employer_name,
+          location: locDisplay,
+          description: item.job_description || '',
+          apply_url: item.job_apply_link,
+          salary: salaryDisplay,
+          job_id: item.job_id || `rapid-${Date.now()}`,
+          workplaceType: (item.job_is_remote ? 'remote' : 'onsite') as 'remote' | 'hybrid' | 'onsite',
+          requiredSkills: item.job_required_skills || [],
+        };
+      }).filter(Boolean),
+    },
+    {
+      host: 'jobs-api14.p.rapidapi.com',
+      url: `https://jobs-api14.p.rapidapi.com/list?query=${encodeURIComponent(queryStr)}&location=${encodeURIComponent(params.location || 'India')}&language=en_GB&remoteOnly=false&datePosted=month&employmentTypes=fulltime&index=0`,
+      parse: (data: any) => (data.jobs || []).map((item: any) => {
+        if (!item.title || !item.company || !item.jobProviders?.[0]?.url) return null;
+        return {
+          title: item.title,
+          company_name: item.company,
+          location: item.location || params.location || 'India',
+          description: item.description || '',
+          apply_url: item.jobProviders[0].url,
+          salary: item.salaryRange || undefined,
+          job_id: `japi14-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          workplaceType: (item.employmentType === 'REMOTE' ? 'remote' : 'onsite') as 'remote' | 'hybrid' | 'onsite',
+          requiredSkills: [],
+        };
+      }).filter(Boolean),
+    },
+  ];
 
-    if (!res.ok) {
-      const errText = await res.text();
-      return { success: false, jobs: [], error: `RapidAPI returned HTTP ${res.status}: ${errText}` };
-    }
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(endpoint.url, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': endpoint.host,
+        },
+      });
 
-    const data = await res.json() as any;
-    const rawList = data.data || [];
+      if (res.status === 403) continue; // Not subscribed — try next
 
-    const jobs: RapidJobItem[] = [];
-    const maxItems = params.limit || 15;
-
-    for (const item of rawList.slice(0, maxItems)) {
-      if (!item.job_title || !item.employer_name || !item.job_apply_link) continue;
-
-      let workplaceType: 'remote' | 'hybrid' | 'onsite' = item.job_is_remote ? 'remote' : 'onsite';
-      const locDisplay = [item.job_city, item.job_state, item.job_country].filter(Boolean).join(', ') || params.location || 'India';
-
-      let salaryDisplay = 'Competitive';
-      if (item.job_min_salary && item.job_max_salary) {
-        const curr = item.job_salary_currency || 'INR';
-        const minK = Math.round(item.job_min_salary / 1000);
-        const maxK = Math.round(item.job_max_salary / 1000);
-        salaryDisplay = `${curr} ${minK}k - ${maxK}k ${item.job_salary_period || 'PA'}`;
+      if (!res.ok) {
+        const errText = await res.text();
+        return { success: false, jobs: [], error: `RapidAPI (${endpoint.host}) HTTP ${res.status}: ${errText.slice(0, 200)}` };
       }
 
-      jobs.push({
-        title: item.job_title,
-        company_name: item.employer_name,
-        company_domain: item.employer_website ? new URL(item.employer_website.startsWith('http') ? item.employer_website : `https://${item.employer_website}`).hostname : '',
-        location: locDisplay,
-        description: item.job_description || '',
-        apply_url: item.job_apply_link,
-        salary: salaryDisplay,
-        job_id: item.job_id || `rapid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        workplaceType,
-        requiredSkills: item.job_required_skills || [],
-      });
+      const data = await res.json() as any;
+      const jobs = (endpoint.parse(data) as RapidJobItem[]).slice(0, maxItems);
+      return { success: true, jobs };
+    } catch (err: any) {
+      // Network error — return immediately
+      return { success: false, jobs: [], error: err.message || 'Failed to query RapidAPI' };
     }
-
-    return { success: true, jobs };
-  } catch (err: any) {
-    return { success: false, jobs: [], error: err.message || 'Failed to query RapidAPI JSearch' };
   }
+
+  return {
+    success: false,
+    jobs: [],
+    error: 'Not subscribed to any RapidAPI job endpoint. Subscribe to "JSearch" at rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch to enable this source.',
+  };
 }
