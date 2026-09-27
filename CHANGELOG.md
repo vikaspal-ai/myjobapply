@@ -93,6 +93,17 @@ The following domain events are emitted across completed phases:
 
 ## 4. Phase-by-Phase Changelog & Implementation History
 
+### [0.8.1-patch] - 2026-09-27
+#### UI Polish, Navigation & Search Enhancements
+- **Workspace UI Polish:** Refactored the `Jobsapply` navigation bar. When authenticated, the center navigation seamlessly transforms into step-progress pills (`Profile`, `Live Jobs`, `Resumes`, etc.), removing redundant floating pills from the workspace.
+- **FAQ Accessibility:** Extracted the FAQ section into a reusable `<FaqSection />` component so it is globally available and functional on both the landing page and the authenticated workspace.
+- **Dual Job Search Engine:** Upgraded the `JobsFeedStep.tsx` UI to include:
+  - An **API Search Query Input** mapped directly next to the "Search Jobs" button to force external plugins to query a specific keyword (e.g. `Node.js`).
+  - A local client-side feed filter (`localSearch`) directly next to location chips to filter the currently synced jobs without hitting the API.
+- **Profile Auto-Save:** Added a debounced auto-save hook in `ProfileStep.tsx`. Resume parsing via `applyParsedData` now correctly triggers a background sync to `AuthContext` and the database. Navigating between tabs immediately after parsing a resume no longer results in data loss.
+
+---
+
 ### [0.8.0-phase7] - 2026-09-20
 #### Phase 7: Outreach Engine, System Hardening & Chaos Drills
 - **Files Created/Modified:**

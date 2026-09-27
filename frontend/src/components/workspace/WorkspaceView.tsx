@@ -4,7 +4,8 @@ import { ProfileStep } from './ProfileStep.js';
 import { JobsFeedStep } from './JobsFeedStep.js';
 import { TailoredResumesStep } from './TailoredResumesStep.js';
 import { AutoApplyStep } from './AutoApplyStep.js';
-import { ReferralsStep } from './ReferralsStep.js';
+import { ReferralsStep } from "./ReferralsStep.js";
+import { FaqSection } from "../shared/FaqSection.js";
 import type { StepKey } from '../../App.js';
 
 interface WorkspaceViewProps {
@@ -44,6 +45,8 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({ activeStep, setAct
         {activeStep === 'apply'     && <AutoApplyStep />}
         {activeStep === 'referrals' && <ReferralsStep />}
       </div>
+
+      <FaqSection />
     </section>
   );
 };

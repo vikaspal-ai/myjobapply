@@ -70,10 +70,37 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
       } catch (err) {
         console.error('Failed to load facts:', err);
       }
-    };
-
     loadFacts();
   }, [activeCandidateId]);
+
+  // Auto-save debounced
+  useEffect(() => {
+    if (!activeCandidateId) return;
+    const timer = setTimeout(async () => {
+      try {
+        await api(`/api/candidates/${activeCandidateId}/preferences`, {
+          method: 'PATCH',
+          body: JSON.stringify({ preferredLocations }),
+        });
+        await api(`/api/candidates/${activeCandidateId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ fullName, currentJob, experienceYears }),
+        });
+        // We do NOT call refreshCandidateProfile here to avoid constant re-renders, 
+        // but we do update the local context object so other tabs see it immediately.
+        setCandidateProfile(prev => prev ? { 
+          ...prev, 
+          fullName, 
+          currentJob, 
+          experienceYears, 
+          preferredLocations 
+        } : prev);
+      } catch (err) {
+        console.error('Auto-save failed:', err);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [fullName, currentJob, experienceYears, preferredLocations, activeCandidateId, setCandidateProfile]);
 
   const toggleLocation = (locKey: string) => {
     if (preferredLocations.includes(locKey)) {

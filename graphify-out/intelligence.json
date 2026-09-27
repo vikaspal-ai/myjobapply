@@ -1,0 +1,36 @@
+{
+  "hotspots": [
+    {
+      "label": "jobRoutes()",
+      "risk": 0.684,
+      "type": "FUNCTION"
+    },
+    {
+      "label": "candidateRoutes()",
+      "risk": 0.572,
+      "type": "FUNCTION"
+    },
+    {
+      "label": "FormInspector",
+      "risk": 0.515,
+      "type": "CLASS"
+    },
+    {
+      "label": "ApplicationWorkflowEngine",
+      "risk": 0.415,
+      "type": "CLASS"
+    },
+    {
+      "label": "documentRoutes()",
+      "risk": 0.403,
+      "type": "FUNCTION"
+    }
+  ],
+  "blast_radius": {
+    "main()": 25,
+    "emitOutboxEvent()": 16,
+    "parseResume()": 13,
+    "ApplicationWorkflowEngine": 10,
+    "db": 9
+  }
+}
