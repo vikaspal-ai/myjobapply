@@ -176,20 +176,24 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
           formData.append('candidateId', activeCandidateId);
         }
 
-        const res = await fetch('/api/resumes/parse-file', {
-          method: 'POST',
-          body: formData,
-        });
+        try {
+          const res = await fetch('/api/resumes/parse-file', {
+            method: 'POST',
+            body: formData,
+          });
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}`);
-        }
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+          }
 
-        const result = await res.json();
-        if (result.data?.parsed) {
-          applyParsedData(result.data.parsed, result.data.rawText);
-          alert(`Successfully parsed ${file.name}! Extracted ${result.data.parsed.skills?.length || 0} skills.`);
+          const result = await res.json();
+          if (result.data?.parsed) {
+            applyParsedData(result.data.parsed, result.data.rawText);
+            alert(`Successfully parsed ${file.name}! Extracted ${result.data.parsed.skills?.length || 0} skills.`);
+          }
+        } catch (err: any) {
+          throw new Error(err.message || 'File upload failed');
         }
       } else {
         const reader = new FileReader();
