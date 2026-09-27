@@ -70,6 +70,7 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({ onSaved }) => {
       } catch (err) {
         console.error('Failed to load facts:', err);
       }
+    };
     loadFacts();
   }, [activeCandidateId]);
 
